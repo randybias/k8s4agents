@@ -11,6 +11,7 @@ This skill provides expert-level Kubernetes troubleshooting workflows covering:
 - Network policies and CNI (Calico)
 - Helm charts and releases
 - Node health and cluster-wide diagnostics
+- Comprehensive cluster assessment and reporting
 
 ## Structure
 
@@ -25,9 +26,11 @@ k8s-troubleshooter/
 │   ├── helm-debugging.md
 │   ├── calico-cni.md
 │   ├── incident-playbooks.md
+│   ├── cluster-assessment.md
 │   └── mcp-integration.md
 └── scripts/              # Diagnostic automation scripts
     ├── cluster_health_check.sh
+    ├── cluster_assessment.sh
     ├── pod_diagnostics.sh
     ├── network_debug.sh
     ├── storage_check.sh
@@ -46,14 +49,18 @@ Trigger workflows using these patterns:
 - `/node-debug` - Node health and resource pressure
 - `/helm-debug` - Helm deployment failures
 - `/full-diag` - Comprehensive cluster health check
+- `/cluster-assessment` - Generate comprehensive cluster report
 
 ### Diagnostic Scripts
 
 All scripts include usage help with `-h` flag:
 
 ```bash
-# Cluster health check
+# Quick cluster health check (terminal output)
 ./scripts/cluster_health_check.sh -v
+
+# Comprehensive cluster assessment (markdown report)
+./scripts/cluster_assessment.sh -o my-cluster-report.md
 
 # Pod diagnostics
 ./scripts/pod_diagnostics.sh my-pod default -l -v
@@ -106,6 +113,7 @@ Comprehensive deep-dive guides:
 - **helm-debugging.md** (618 lines) - Release management, rollbacks, hooks
 - **calico-cni.md** (612 lines) - CNI health, IPAM, BGP, network policies
 - **incident-playbooks.md** (756 lines) - Step-by-step guides for common failures
+- **cluster-assessment.md** - Comprehensive cluster assessment and reporting workflows
 - **mcp-integration.md** (276 lines) - MCP server setup for kubectl access
 
 ## Incident Response Playbooks

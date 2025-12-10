@@ -35,3 +35,6 @@ tmp/
 # Environment
 .env
 .env.local
+
+# Claude
+.claude

@@ -38,6 +38,7 @@ Use these trigger patterns for fast workflow access:
 - `/node-debug` - Node NotReady or resource pressure
 - `/helm-debug` - Helm deployment or upgrade failures
 - `/full-diag` - Comprehensive cluster health check
+- `/cluster-assessment` - Generate comprehensive cluster assessment report
 
 ## Diagnostic Decision Tree
 
@@ -404,6 +405,111 @@ kubectl get pods --all-namespaces --field-selector status.phase=Failed
 ```
 
 **Script Available**: `scripts/cluster_health_check.sh` automates this workflow.
+
+## Workflow 7: Cluster Assessment (/cluster-assessment)
+
+### Overview
+
+Generate a comprehensive, documented cluster assessment report for audits, capacity planning, and documentation. Unlike the quick health check above, this produces a detailed markdown report with analysis and recommendations.
+
+### When to Use
+
+- **Initial cluster evaluation**: Baseline assessment of new clusters
+- **Capacity planning**: Understanding resource utilization and growth
+- **Audit and compliance**: Documentation for security reviews
+- **Quarterly reviews**: Regular operational health assessments
+- **Handoff documentation**: Transferring cluster ownership
+
+### Assessment Phases
+
+**Phase 1: Data Collection**
+```bash
+# Control plane health
+kubectl get --raw /healthz
+kubectl get --raw /readyz
+kubectl get --raw /livez
+
+# Comprehensive node data
+kubectl get nodes -o wide
+kubectl describe nodes
+kubectl top nodes
+
+# All workloads
+kubectl get pods,deployments,statefulsets,daemonsets --all-namespaces
+
+# Storage infrastructure
+kubectl get pvc,pv,storageclass --all-namespaces
+
+# Networking
+kubectl get svc,endpoints,networkpolicies --all-namespaces
+
+# Recent events
+kubectl get events --all-namespaces --sort-by='.lastTimestamp'
+```
+
+**Phase 2: Analysis**
+
+The assessment analyzes:
+- Resource overcommitment (CPU/Memory limits vs capacity)
+- Failed or pending workloads
+- Node pressure conditions
+- Security posture (network policies, RBAC, authentication)
+- Storage capacity and health
+- Platform component status
+
+**Phase 3: Report Generation**
+
+Generates structured markdown report with:
+- Executive summary with health score
+- Detailed analysis of all cluster aspects
+- Prioritized recommendations (High/Medium/Low)
+- Comparison against best practices
+
+**Phase 4: Recommendations**
+
+Each finding includes:
+- Problem statement
+- Impact assessment
+- Specific action items
+- Documentation references
+
+### Using the Assessment Script
+
+```bash
+# Generate report with default name (cluster-assessment-TIMESTAMP.md)
+./scripts/cluster_assessment.sh
+
+# Specify output file
+./scripts/cluster_assessment.sh -o my-cluster-report.md
+
+# Use specific kubeconfig
+./scripts/cluster_assessment.sh -c ~/.kube/prod-config -o prod-report.md
+```
+
+### Report Sections
+
+1. **Executive Summary** - Health score, critical findings
+2. **Control Plane Health** - API server, components
+3. **Node Infrastructure** - Status, capacity, conditions
+4. **Resource Allocation** - Overcommitment analysis
+5. **Workload Status** - Pods, deployments, health
+6. **Storage Infrastructure** - PVC/PV, storage classes
+7. **Network Configuration** - CNI, services, policies
+8. **Security Posture** - RBAC, authentication, policies
+9. **Recent Events** - Warnings, errors, alerts
+10. **Recommendations** - Prioritized action items
+
+### Comparison: Health Check vs Assessment
+
+| Feature | Health Check | Cluster Assessment |
+|---------|-------------|-------------------|
+| Speed | 30 seconds | 2-5 minutes |
+| Output | Terminal | Markdown report |
+| Scope | Critical issues | Full analysis |
+| Recommendations | None | Prioritized |
+| Use Case | Quick status | Documentation |
+
+**Deep Dive**: See `references/cluster-assessment.md` for detailed assessment methodology, automation, and best practices.
 
 ## Network Debugging Workflow (/network-debug)
 
