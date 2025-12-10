@@ -1,0 +1,67 @@
+# Skill Name
+
+One-line description of what this skill does.
+
+## Overview
+
+Detailed description of the skill's purpose and capabilities.
+
+## Installation
+
+### For Claude Code
+
+```bash
+# Copy to your skills directory
+cp -r skill-name ~/.claude/skills/
+```
+
+### For Claude Desktop
+
+Add to your skills directory as configured in Claude settings.
+
+## Usage
+
+### Basic Usage
+
+Example of how to trigger the skill:
+
+```
+User: "Describe the trigger phrase..."
+```
+
+Claude will automatically use this skill when appropriate based on the description in SKILL.md.
+
+### Advanced Usage
+
+Additional usage patterns and examples.
+
+## Features
+
+- Feature 1
+- Feature 2
+- Feature 3
+
+## Scripts
+
+If this skill includes scripts:
+
+- `scripts/script1.sh` - Description
+- `scripts/script2.py` - Description
+
+## References
+
+Additional documentation included:
+
+- `references/topic.md` - Detailed topic information
+
+## Testing
+
+Describe how to test this skill or validate it works correctly.
+
+## Contributing
+
+Guidelines for contributing to this skill.
+
+## License
+
+License information (typically matches project license).

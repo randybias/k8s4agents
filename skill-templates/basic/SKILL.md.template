@@ -1,0 +1,59 @@
+---
+name: my-skill-name
+description: A clear description of what this skill does and when Claude should use it. Include key triggers and use cases.
+---
+
+# My Skill Name
+
+Brief overview of what this skill provides to Claude.
+
+## When to Use This Skill
+
+- Trigger phrase 1
+- Trigger phrase 2
+- Specific scenario 3
+
+## Core Capabilities
+
+### Capability 1
+
+Description and usage.
+
+### Capability 2
+
+Description and usage.
+
+## Workflows
+
+### Workflow Name
+
+1. Step one
+2. Step two
+3. Step three
+
+## Examples
+
+### Example 1: Basic Usage
+
+User asks: "..."
+
+Claude should:
+1. Action 1
+2. Action 2
+
+## Guidelines
+
+- Guideline 1
+- Guideline 2
+- Guideline 3
+
+## References
+
+For more detailed information, see:
+- `references/topic-1.md`
+- `references/topic-2.md`
+
+## Scripts
+
+Available scripts:
+- `scripts/script-name.sh` - Description
