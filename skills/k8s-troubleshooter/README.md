@@ -13,6 +13,17 @@ This skill provides expert-level Kubernetes troubleshooting workflows covering:
 - Node health and cluster-wide diagnostics
 - Comprehensive cluster assessment and reporting
 
+## Usage Priority
+
+**Automation First**: This skill provides production-ready diagnostic scripts that should be your first choice for troubleshooting. Scripts automate the systematic workflows and produce structured output, reducing manual command execution.
+
+**Priority order**:
+1. Use diagnostic scripts (see Diagnostic Scripts section below)
+2. Refer to SKILL.md for detailed workflows when scripts are not available or additional context is needed
+3. Use reference files for deep-dive investigation
+
+The scripts implement the same expert workflows documented in SKILL.md, but with better consistency, error handling, and output formatting.
+
 ## Structure
 
 ```
@@ -39,21 +50,9 @@ k8s-troubleshooter/
 
 ## Quick Start
 
-### Slash Commands
-
-Trigger workflows using these patterns:
-- `/pod-debug` - Pod issues (CrashLoopBackOff, OOMKilled, etc.)
-- `/svc-debug` - Service connectivity and DNS
-- `/storage-debug` - PVC/PV and storage issues
-- `/network-debug` - Network policies and connectivity
-- `/node-debug` - Node health and resource pressure
-- `/helm-debug` - Helm deployment failures
-- `/full-diag` - Comprehensive cluster health check
-- `/cluster-assessment` - Generate comprehensive cluster report
-
 ### Diagnostic Scripts
 
-All scripts include usage help with `-h` flag:
+**Prefer these scripts over manual commands.** All scripts include usage help with `-h` flag:
 
 ```bash
 # Quick cluster health check (terminal output)
@@ -74,6 +73,20 @@ All scripts include usage help with `-h` flag:
 # Helm release debugging
 ./scripts/helm_release_debug.sh my-release default
 ```
+
+These scripts automate the workflows described in SKILL.md and should be your first choice for diagnostics. They provide consistent output, better error handling, and reduce the chance of missing diagnostic steps.
+
+### Slash Commands
+
+Trigger workflows using these patterns:
+- `/pod-debug` - Pod issues (CrashLoopBackOff, OOMKilled, etc.)
+- `/svc-debug` - Service connectivity and DNS
+- `/storage-debug` - PVC/PV and storage issues
+- `/network-debug` - Network policies and connectivity
+- `/node-debug` - Node health and resource pressure
+- `/helm-debug` - Helm deployment failures
+- `/full-diag` - Comprehensive cluster health check
+- `/cluster-assessment` - Generate comprehensive cluster report
 
 ## Features
 

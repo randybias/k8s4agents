@@ -40,6 +40,32 @@ Use these trigger patterns for fast workflow access:
 - `/full-diag` - Comprehensive cluster health check
 - `/cluster-assessment` - Generate comprehensive cluster assessment report
 
+## Automation First
+
+**Priority**: Use automation scripts before manual command workflows. Scripts provide production-tested diagnostic flows and generate structured output.
+
+### Quick Reference: Task to Script Mapping
+
+| Task | Script | Invocation |
+|------|--------|------------|
+| Cluster health check | `cluster_health_check.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/cluster_health_check.sh` |
+| Cluster assessment report | `cluster_assessment.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/cluster_assessment.sh` |
+| Cluster assessment (custom output) | `cluster_assessment.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/cluster_assessment.sh -o custom-report.md` |
+| Cluster assessment (custom kubeconfig) | `cluster_assessment.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/cluster_assessment.sh -c ~/.kube/prod-config` |
+| Pod diagnostics | `pod_diagnostics.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/pod_diagnostics.sh <POD_NAME> <NAMESPACE>` |
+| Network debugging | `network_debug.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/network_debug.sh <NAMESPACE>` |
+| Storage check | `storage_check.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/storage_check.sh <NAMESPACE>` |
+| Helm release debug | `helm_release_debug.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE>` |
+
+**Script Location**: All scripts are in `~/.claude/skills/k8s-troubleshooter/scripts/`
+
+**Getting Help**: Run any script with `-h` flag for usage details and parameters.
+
+**When to Use Manual Commands**: Use manual workflows when:
+- Script is not available for your specific task
+- You need to understand the diagnostic methodology
+- Script fails and you need to debug the underlying commands
+
 ## Diagnostic Decision Tree
 
 Start with the symptom that best matches your issue:
@@ -362,7 +388,27 @@ helm get manifest <RELEASE_NAME> -n <NAMESPACE> | kubectl get -f -
 
 ## Workflow 6: Cluster Health (/full-diag)
 
-### Phase 1: Control Plane Check
+> **AUTOMATED SCRIPT AVAILABLE**: Use `cluster_health_check.sh` for quick baseline health checks.
+
+### Automated Health Check (Primary Method)
+
+```bash
+# Run automated cluster health check
+~/.claude/skills/k8s-troubleshooter/scripts/cluster_health_check.sh
+```
+
+This script automatically checks:
+- Control plane health (API server, components)
+- Node status and resource pressure
+- System pod health (kube-system namespace)
+- Recent cluster events and errors
+- Failed or pending pods
+
+**Use this first** for fast, consistent health checks.
+
+### Manual Fallback (for understanding or when script unavailable)
+
+#### Phase 1: Control Plane Check
 
 ```bash
 # Check control plane components
@@ -377,7 +423,7 @@ kubectl get --raw /livez
 kubectl get --raw /readyz
 ```
 
-### Phase 2: Cluster Resource Overview
+#### Phase 2: Cluster Resource Overview
 
 ```bash
 # Node summary
@@ -391,7 +437,7 @@ kubectl top pods --all-namespaces | head -20
 kubectl get resourcequotas --all-namespaces
 ```
 
-### Phase 3: System Pod Health
+#### Phase 3: System Pod Health
 
 ```bash
 # Check critical system pods
@@ -404,9 +450,9 @@ kubectl get events --all-namespaces --sort-by='.lastTimestamp' | tail -50
 kubectl get pods --all-namespaces --field-selector status.phase=Failed
 ```
 
-**Script Available**: `scripts/cluster_health_check.sh` automates this workflow.
-
 ## Workflow 7: Cluster Assessment (/cluster-assessment)
+
+> **AUTOMATED SCRIPT AVAILABLE**: Use `cluster_assessment.sh` to generate comprehensive assessment reports.
 
 ### Overview
 
@@ -420,9 +466,31 @@ Generate a comprehensive, documented cluster assessment report for audits, capac
 - **Quarterly reviews**: Regular operational health assessments
 - **Handoff documentation**: Transferring cluster ownership
 
-### Assessment Phases
+### Automated Assessment (Primary Method)
 
-**Phase 1: Data Collection**
+```bash
+# Generate report with default name (cluster-assessment-TIMESTAMP.md)
+~/.claude/skills/k8s-troubleshooter/scripts/cluster_assessment.sh
+
+# Specify output file
+~/.claude/skills/k8s-troubleshooter/scripts/cluster_assessment.sh -o my-cluster-report.md
+
+# Use specific kubeconfig
+~/.claude/skills/k8s-troubleshooter/scripts/cluster_assessment.sh -c ~/.kube/prod-config -o prod-report.md
+```
+
+The script automatically:
+1. Collects comprehensive cluster data (control plane, nodes, workloads, storage, networking)
+2. Analyzes resource overcommitment, failed workloads, node pressure, security posture
+3. Generates structured markdown report with executive summary and health score
+4. Provides prioritized recommendations (High/Medium/Low) with specific action items
+
+**Use this first** for consistent, thorough assessments with actionable recommendations.
+
+### Manual Fallback (for understanding methodology)
+
+#### Phase 1: Data Collection
+
 ```bash
 # Control plane health
 kubectl get --raw /healthz
@@ -447,7 +515,7 @@ kubectl get svc,endpoints,networkpolicies --all-namespaces
 kubectl get events --all-namespaces --sort-by='.lastTimestamp'
 ```
 
-**Phase 2: Analysis**
+#### Phase 2: Analysis
 
 The assessment analyzes:
 - Resource overcommitment (CPU/Memory limits vs capacity)
@@ -457,7 +525,7 @@ The assessment analyzes:
 - Storage capacity and health
 - Platform component status
 
-**Phase 3: Report Generation**
+#### Phase 3: Report Generation
 
 Generates structured markdown report with:
 - Executive summary with health score
@@ -465,26 +533,13 @@ Generates structured markdown report with:
 - Prioritized recommendations (High/Medium/Low)
 - Comparison against best practices
 
-**Phase 4: Recommendations**
+#### Phase 4: Recommendations
 
 Each finding includes:
 - Problem statement
 - Impact assessment
 - Specific action items
 - Documentation references
-
-### Using the Assessment Script
-
-```bash
-# Generate report with default name (cluster-assessment-TIMESTAMP.md)
-./scripts/cluster_assessment.sh
-
-# Specify output file
-./scripts/cluster_assessment.sh -o my-cluster-report.md
-
-# Use specific kubeconfig
-./scripts/cluster_assessment.sh -c ~/.kube/prod-config -o prod-report.md
-```
 
 ### Report Sections
 
@@ -571,13 +626,57 @@ For automated kubectl access, see `references/mcp-integration.md` for:
 
 ## Scripts Reference
 
-Available diagnostic scripts in `scripts/`:
+**Use these scripts first** before running manual command sequences. Scripts provide production-tested workflows with consistent output formatting.
 
-- `cluster_health_check.sh`: Automated baseline cluster health check
-- `pod_diagnostics.sh`: Comprehensive pod state analysis
-- `network_debug.sh`: DNS, endpoints, and connectivity testing
-- `storage_check.sh`: PVC/PV and CSI driver diagnostics
-- `helm_release_debug.sh`: Helm release investigation
+**Script Location**: `~/.claude/skills/k8s-troubleshooter/scripts/`
+
+**Getting Help**: All scripts support `-h` flag for detailed usage information and parameter descriptions.
+
+### Available Scripts
+
+**Cluster Health Check** (`cluster_health_check.sh`)
+- Automated baseline cluster health check
+- Checks: control plane, nodes, system pods, recent events
+```bash
+~/.claude/skills/k8s-troubleshooter/scripts/cluster_health_check.sh
+```
+
+**Cluster Assessment** (`cluster_assessment.sh`)
+- Generate comprehensive assessment report with recommendations
+- Output: Markdown report with executive summary and action items
+```bash
+~/.claude/skills/k8s-troubleshooter/scripts/cluster_assessment.sh
+~/.claude/skills/k8s-troubleshooter/scripts/cluster_assessment.sh -o custom-report.md
+~/.claude/skills/k8s-troubleshooter/scripts/cluster_assessment.sh -c ~/.kube/prod-config
+```
+
+**Pod Diagnostics** (`pod_diagnostics.sh`)
+- Comprehensive pod state analysis and debugging
+- Includes: status, events, logs, resource usage, restart history
+```bash
+~/.claude/skills/k8s-troubleshooter/scripts/pod_diagnostics.sh <POD_NAME> <NAMESPACE>
+```
+
+**Network Debug** (`network_debug.sh`)
+- DNS, endpoints, and connectivity testing
+- Tests: DNS resolution, service endpoints, network policies, pod-to-pod connectivity
+```bash
+~/.claude/skills/k8s-troubleshooter/scripts/network_debug.sh <NAMESPACE>
+```
+
+**Storage Check** (`storage_check.sh`)
+- PVC/PV and CSI driver diagnostics
+- Checks: PVC status, bindings, provisioner health, volume attachments
+```bash
+~/.claude/skills/k8s-troubleshooter/scripts/storage_check.sh <NAMESPACE>
+```
+
+**Helm Release Debug** (`helm_release_debug.sh`)
+- Helm release investigation and troubleshooting
+- Covers: release status, template validation, stuck release detection
+```bash
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE>
+```
 
 ## Additional Resources
 
