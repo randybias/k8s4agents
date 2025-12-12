@@ -3,6 +3,8 @@
 # Cluster Health Check Script
 # Performs comprehensive baseline health check of Kubernetes cluster
 #
+# Portable: Works on both macOS (BSD) and Linux (GNU)
+#
 # Usage: ./cluster_health_check.sh [options]
 # Options:
 #   -n, --namespace NAMESPACE  Check specific namespace (default: all)
@@ -46,6 +48,25 @@ print_info() {
     fi
 }
 
+# Portable count function - handles wc -l whitespace and empty input
+count_lines() {
+    local input
+    input=$(cat)
+    if [ -z "$input" ]; then
+        echo 0
+    else
+        echo "$input" | wc -l | tr -d ' '
+    fi
+}
+
+# Portable grep count - returns 0 instead of failing when no matches
+grep_count() {
+    local result
+    result=$(grep -c "$@" 2>/dev/null || true)
+    # Ensure we only return a single number
+    echo "${result:-0}" | head -1 | tr -d ' '
+}
+
 check_prerequisites() {
     if ! command -v kubectl &> /dev/null; then
         print_error "kubectl not found. Please install kubectl."
@@ -63,22 +84,27 @@ check_prerequisites() {
 check_nodes() {
     print_header "NODE STATUS"
 
-    local node_count=$(kubectl get nodes --no-headers | wc -l | tr -d ' ')
-    local ready_count=$(kubectl get nodes --no-headers | grep -c "Ready" || echo 0)
-    local notready_count=$(kubectl get nodes --no-headers | grep -c "NotReady" || echo 0)
+    local node_output
+    node_output=$(kubectl get nodes --no-headers 2>/dev/null || echo "")
+
+    local node_count ready_count notready_count
+    node_count=$(echo "$node_output" | count_lines)
+    ready_count=$(echo "$node_output" | grep_count " Ready" || echo 0)
+    notready_count=$(echo "$node_output" | grep_count "NotReady" || echo 0)
 
     print_info "Total nodes: $node_count"
     print_info "Ready: $ready_count"
 
     if [ "$notready_count" -gt 0 ]; then
         print_error "NotReady nodes: $notready_count"
-        kubectl get nodes | grep "NotReady"
+        kubectl get nodes | grep "NotReady" || true
     else
         print_success "All nodes are Ready"
     fi
 
     # Check for resource pressure
-    local pressure_nodes=$(kubectl get nodes -o json | jq -r '.items[] | select(.status.conditions[] | select(.type=="DiskPressure" or .type=="MemoryPressure" or .type=="PIDPressure") | select(.status=="True")) | .metadata.name' 2>/dev/null || echo "")
+    local pressure_nodes
+    pressure_nodes=$(kubectl get nodes -o json 2>/dev/null | jq -r '.items[] | select(.status.conditions[] | select(.type=="DiskPressure" or .type=="MemoryPressure" or .type=="PIDPressure") | select(.status=="True")) | .metadata.name' 2>/dev/null || echo "")
 
     if [ -n "$pressure_nodes" ]; then
         print_warning "Nodes with resource pressure detected:"
@@ -120,15 +146,20 @@ check_system_pods() {
     local critical_components=("kube-apiserver" "kube-controller-manager" "kube-scheduler" "etcd" "kube-proxy")
 
     for component in "${critical_components[@]}"; do
-        local pod_count=$(kubectl get pods -n kube-system -l component=$component --no-headers 2>/dev/null | wc -l || echo 0)
+        local pod_output pod_count running
+
+        # Try by label first
+        pod_output=$(kubectl get pods -n kube-system -l "component=$component" --no-headers 2>/dev/null || echo "")
+        pod_count=$(echo "$pod_output" | { grep -v "^$" || true; } | count_lines)
 
         if [ "$pod_count" -eq 0 ]; then
-            # Try alternative label
-            pod_count=$(kubectl get pods -n kube-system --no-headers 2>/dev/null | grep -c "^$component" || echo 0)
+            # Try alternative: match by name prefix
+            pod_output=$(kubectl get pods -n kube-system --no-headers 2>/dev/null | { grep "^${component}" || true; })
+            pod_count=$(echo "$pod_output" | { grep -v "^$" || true; } | count_lines)
         fi
 
         if [ "$pod_count" -gt 0 ]; then
-            local running=$(kubectl get pods -n kube-system -l component=$component --no-headers 2>/dev/null | grep -c "Running" || kubectl get pods -n kube-system --no-headers 2>/dev/null | grep "^$component" | grep -c "Running" || echo 0)
+            running=$(echo "$pod_output" | grep_count "Running")
             if [ "$running" -eq "$pod_count" ]; then
                 print_success "$component: $running/$pod_count running"
             else
@@ -140,13 +171,17 @@ check_system_pods() {
     done
 
     # Check CoreDNS
-    local coredns_count=$(kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers 2>/dev/null | wc -l || echo 0)
+    local coredns_output coredns_count coredns_running
+    coredns_output=$(kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers 2>/dev/null || echo "")
+    coredns_count=$(echo "$coredns_output" | { grep -v "^$" || true; } | count_lines)
+
     if [ "$coredns_count" -eq 0 ]; then
-        coredns_count=$(kubectl get pods -n kube-system -l k8s-app=coredns --no-headers 2>/dev/null | wc -l || echo 0)
+        coredns_output=$(kubectl get pods -n kube-system -l k8s-app=coredns --no-headers 2>/dev/null || echo "")
+        coredns_count=$(echo "$coredns_output" | { grep -v "^$" || true; } | count_lines)
     fi
 
     if [ "$coredns_count" -gt 0 ]; then
-        local coredns_running=$(kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers 2>/dev/null | grep -c "Running" || kubectl get pods -n kube-system -l k8s-app=coredns --no-headers 2>/dev/null | grep -c "Running" || echo 0)
+        coredns_running=$(echo "$coredns_output" | grep_count "Running")
         if [ "$coredns_running" -eq "$coredns_count" ]; then
             print_success "CoreDNS: $coredns_running/$coredns_count running"
         else
@@ -157,7 +192,8 @@ check_system_pods() {
     fi
 
     # Check for failed pods in kube-system
-    local failed_pods=$(kubectl get pods -n kube-system --field-selector=status.phase=Failed --no-headers 2>/dev/null | wc -l | tr -d ' ' || echo 0)
+    local failed_pods
+    failed_pods=$(kubectl get pods -n kube-system --field-selector=status.phase=Failed --no-headers 2>/dev/null | count_lines)
     if [ "$failed_pods" -gt 0 ]; then
         print_warning "Failed pods in kube-system: $failed_pods"
         kubectl get pods -n kube-system --field-selector=status.phase=Failed
@@ -169,7 +205,7 @@ check_system_pods() {
 check_resource_usage() {
     print_header "RESOURCE USAGE"
 
-    if ! command -v kubectl &> /dev/null || ! kubectl top nodes &> /dev/null; then
+    if ! kubectl top nodes &> /dev/null 2>&1; then
         print_warning "Metrics server not available or kubectl top not working"
         return
     fi
@@ -179,8 +215,9 @@ check_resource_usage() {
     kubectl top nodes
 
     # Check for nodes with high resource usage
-    local high_cpu_nodes=$(kubectl top nodes --no-headers 2>/dev/null | awk '{if ($3 ~ /%/ && int($3) > 80) print $1}' || echo "")
-    local high_mem_nodes=$(kubectl top nodes --no-headers 2>/dev/null | awk '{if ($5 ~ /%/ && int($5) > 80) print $1}' || echo "")
+    local high_cpu_nodes high_mem_nodes
+    high_cpu_nodes=$(kubectl top nodes --no-headers 2>/dev/null | awk '{if ($3 ~ /%/ && int($3) > 80) print $1}' || echo "")
+    high_mem_nodes=$(kubectl top nodes --no-headers 2>/dev/null | awk '{if ($5 ~ /%/ && int($5) > 80) print $1}' || echo "")
 
     if [ -n "$high_cpu_nodes" ]; then
         print_warning "Nodes with high CPU usage (>80%): $high_cpu_nodes"
@@ -194,7 +231,7 @@ check_resource_usage() {
 check_recent_events() {
     print_header "RECENT CLUSTER EVENTS"
 
-    local ns_flag=""
+    local ns_flag
     if [ -n "$NAMESPACE" ]; then
         ns_flag="-n $NAMESPACE"
     else
@@ -203,14 +240,15 @@ check_recent_events() {
 
     # Show last 20 events
     print_info "Last 20 events:"
-    kubectl get events $ns_flag --sort-by='.lastTimestamp' | tail -20
+    kubectl get events $ns_flag --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || echo "No events found"
 
     # Check for warning events
-    local warning_count=$(kubectl get events $ns_flag --field-selector type=Warning --no-headers 2>/dev/null | wc -l | tr -d ' ' || echo 0)
+    local warning_count
+    warning_count=$(kubectl get events $ns_flag --field-selector type=Warning --no-headers 2>/dev/null | count_lines)
     if [ "$warning_count" -gt 0 ]; then
         print_warning "Warning events found: $warning_count"
         if [ "$VERBOSE" = true ]; then
-            kubectl get events $ns_flag --field-selector type=Warning --sort-by='.lastTimestamp' | tail -10
+            kubectl get events $ns_flag --field-selector type=Warning --sort-by='.lastTimestamp' 2>/dev/null | tail -10 || true
         fi
     else
         print_success "No recent warning events"
@@ -220,7 +258,7 @@ check_recent_events() {
 check_pod_health() {
     print_header "POD HEALTH"
 
-    local ns_flag=""
+    local ns_flag
     if [ -n "$NAMESPACE" ]; then
         ns_flag="-n $NAMESPACE"
     else
@@ -228,10 +266,11 @@ check_pod_health() {
     fi
 
     # Count pods by status
-    local total_pods=$(kubectl get pods $ns_flag --no-headers 2>/dev/null | wc -l | tr -d ' ' || echo 0)
-    local running_pods=$(kubectl get pods $ns_flag --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ' || echo 0)
-    local pending_pods=$(kubectl get pods $ns_flag --field-selector=status.phase=Pending --no-headers 2>/dev/null | wc -l | tr -d ' ' || echo 0)
-    local failed_pods=$(kubectl get pods $ns_flag --field-selector=status.phase=Failed --no-headers 2>/dev/null | wc -l | tr -d ' ' || echo 0)
+    local total_pods running_pods pending_pods failed_pods
+    total_pods=$(kubectl get pods $ns_flag --no-headers 2>/dev/null | count_lines)
+    running_pods=$(kubectl get pods $ns_flag --field-selector=status.phase=Running --no-headers 2>/dev/null | count_lines)
+    pending_pods=$(kubectl get pods $ns_flag --field-selector=status.phase=Pending --no-headers 2>/dev/null | count_lines)
+    failed_pods=$(kubectl get pods $ns_flag --field-selector=status.phase=Failed --no-headers 2>/dev/null | count_lines)
 
     print_info "Total pods: $total_pods"
     print_info "Running: $running_pods"
@@ -251,7 +290,16 @@ check_pod_health() {
     fi
 
     # Check for pods with high restart count
-    local high_restart_pods=$(kubectl get pods $ns_flag --no-headers 2>/dev/null | awk '{if ($4 > 5) print $1}' || echo "")
+    # Note: restart count column position varies based on namespace flag
+    local high_restart_pods
+    if [ -n "$NAMESPACE" ]; then
+        # Single namespace: RESTARTS is column 4
+        high_restart_pods=$(kubectl get pods $ns_flag --no-headers 2>/dev/null | awk '{if ($4 ~ /^[0-9]+$/ && $4 > 5) print $1}' || echo "")
+    else
+        # All namespaces: RESTARTS is column 5 (namespace is column 1)
+        high_restart_pods=$(kubectl get pods $ns_flag --no-headers 2>/dev/null | awk '{if ($5 ~ /^[0-9]+$/ && $5 > 5) print $1 "/" $2}' || echo "")
+    fi
+
     if [ -n "$high_restart_pods" ]; then
         print_warning "Pods with high restart count (>5):"
         echo "$high_restart_pods"

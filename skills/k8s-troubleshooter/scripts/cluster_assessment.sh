@@ -3,6 +3,8 @@
 # Kubernetes Cluster Comprehensive Assessment Script
 # Generates detailed markdown report of cluster health, workloads, and recommendations
 #
+# Portable: Works on both macOS (BSD) and Linux (GNU)
+#
 # Usage: ./cluster_assessment.sh [options]
 # Options:
 #   -o, --output FILE         Output markdown file (default: cluster-assessment-TIMESTAMP.md)
@@ -63,53 +65,234 @@ check_prerequisites() {
     fi
 }
 
-get_cluster_info() {
-    local cluster_name=$(kubectl config current-context 2>/dev/null || echo "unknown")
-    local k8s_version=$(kubectl version --short 2>/dev/null | grep "Server Version" | cut -d: -f2 | xargs || echo "unknown")
-    echo "$cluster_name|$k8s_version"
+# Data collection functions
+get_cluster_name() {
+    kubectl config current-context 2>/dev/null || echo "unknown"
 }
 
-collect_node_data() {
-    kubectl get nodes -o json 2>/dev/null
-}
-
-collect_pod_data() {
-    kubectl get pods --all-namespaces -o json 2>/dev/null
-}
-
-collect_namespace_data() {
-    kubectl get namespaces -o json 2>/dev/null
-}
-
-collect_workload_data() {
-    local deployments=$(kubectl get deployments --all-namespaces --no-headers 2>/dev/null | wc -l | tr -d ' ')
-    local daemonsets=$(kubectl get daemonsets --all-namespaces --no-headers 2>/dev/null | wc -l | tr -d ' ')
-    local statefulsets=$(kubectl get statefulsets --all-namespaces --no-headers 2>/dev/null | wc -l | tr -d ' ')
-    echo "$deployments|$daemonsets|$statefulsets"
-}
-
-collect_storage_data() {
-    local pvcs=$(kubectl get pvc --all-namespaces -o json 2>/dev/null)
-    local pvs=$(kubectl get pv -o json 2>/dev/null)
-    local sc=$(kubectl get storageclass -o json 2>/dev/null)
-    echo "$pvcs|||$pvs|||$sc"
-}
-
-collect_events() {
-    kubectl get events --all-namespaces --sort-by='.lastTimestamp' -o json 2>/dev/null | \
-        jq -r '.items[-50:] | .[] | "\(.lastTimestamp)|\(.type)|\(.involvedObject.namespace)|\(.involvedObject.name)|\(.reason)|\(.message)"' 2>/dev/null || echo ""
+get_k8s_version() {
+    kubectl version --short 2>/dev/null | grep "Server Version" | cut -d: -f2 | xargs || echo "unknown"
 }
 
 check_api_health() {
-    local health="unknown"
-    local ready="unknown"
-    local live="unknown"
+    kubectl get --raw /healthz &>/dev/null && echo "ok" || echo "failed"
+}
 
-    kubectl get --raw /healthz &>/dev/null && health="ok" || health="failed"
-    kubectl get --raw /readyz &>/dev/null && ready="ok" || ready="failed"
-    kubectl get --raw /livez &>/dev/null && live="ok" || live="failed"
+check_api_ready() {
+    kubectl get --raw /readyz &>/dev/null && echo "ok" || echo "failed"
+}
 
-    echo "$health|$ready|$live"
+check_api_live() {
+    kubectl get --raw /livez &>/dev/null && echo "ok" || echo "failed"
+}
+
+get_node_summary() {
+    kubectl get nodes -o json 2>/dev/null | jq -r '
+        .items[] |
+        "| \(.metadata.name) | \(.status.conditions[] | select(.type=="Ready") | .status) | \(.status.nodeInfo.kubeletVersion) |"
+    ' 2>/dev/null || echo "No node data available"
+}
+
+get_node_conditions() {
+    kubectl get nodes -o json 2>/dev/null | jq -r '
+        .items[] |
+        "**\(.metadata.name):**",
+        (.status.conditions[] | "- \(.type): \(.status)"),
+        ""
+    ' 2>/dev/null || echo "No node condition data available"
+}
+
+get_control_plane_status() {
+    local output=""
+    local components=("kube-apiserver" "kube-controller-manager" "kube-scheduler" "etcd")
+
+    for component in "${components[@]}"; do
+        local count running pod_output
+        pod_output=$(kubectl get pods -n kube-system -l component="$component" --no-headers 2>/dev/null || echo "")
+        count=$(echo "$pod_output" | grep -v "^$" | wc -l | tr -d ' ')
+
+        if [ "$count" -gt 0 ]; then
+            running=$(echo "$pod_output" | grep -c "Running" 2>/dev/null || echo 0)
+            output="${output}- **${component}:** ${running}/${count} running\n"
+        else
+            # Try matching by name prefix
+            pod_output=$(kubectl get pods -n kube-system --no-headers 2>/dev/null | grep "^${component}" || echo "")
+            count=$(echo "$pod_output" | grep -v "^$" | wc -l | tr -d ' ')
+            if [ "$count" -gt 0 ]; then
+                running=$(echo "$pod_output" | grep -c "Running" 2>/dev/null || echo 0)
+                output="${output}- **${component}:** ${running}/${count} running\n"
+            fi
+        fi
+    done
+
+    if [ -z "$output" ]; then
+        echo "Control plane components not found (may be external)"
+    else
+        echo -e "$output"
+    fi
+}
+
+get_resource_allocation() {
+    if kubectl top nodes &>/dev/null 2>&1; then
+        kubectl top nodes 2>/dev/null || echo "Metrics not available"
+    else
+        echo "Metrics server not available"
+    fi
+}
+
+get_resource_concerns() {
+    local pressure_nodes
+    pressure_nodes=$(kubectl get nodes -o json 2>/dev/null | jq -r '
+        .items[] |
+        select(.status.conditions[] | select(.type=="DiskPressure" or .type=="MemoryPressure" or .type=="PIDPressure") | select(.status=="True")) |
+        .metadata.name
+    ' 2>/dev/null || echo "")
+
+    if [ -n "$pressure_nodes" ]; then
+        echo "Nodes with resource pressure:"
+        echo "$pressure_nodes"
+    else
+        echo "No resource pressure detected on any nodes"
+    fi
+}
+
+get_namespace_count() {
+    kubectl get namespaces --no-headers 2>/dev/null | wc -l | tr -d ' '
+}
+
+get_pod_counts() {
+    local pod_data
+    pod_data=$(kubectl get pods --all-namespaces -o json 2>/dev/null)
+
+    local total running pending failed
+    total=$(echo "$pod_data" | jq '.items | length' 2>/dev/null || echo 0)
+    running=$(echo "$pod_data" | jq '[.items[] | select(.status.phase=="Running")] | length' 2>/dev/null || echo 0)
+    pending=$(echo "$pod_data" | jq '[.items[] | select(.status.phase=="Pending")] | length' 2>/dev/null || echo 0)
+    failed=$(echo "$pod_data" | jq '[.items[] | select(.status.phase=="Failed")] | length' 2>/dev/null || echo 0)
+
+    echo "$total|$running|$pending|$failed"
+}
+
+get_workload_counts() {
+    local deployments daemonsets statefulsets
+    deployments=$(kubectl get deployments --all-namespaces --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    daemonsets=$(kubectl get daemonsets --all-namespaces --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    statefulsets=$(kubectl get statefulsets --all-namespaces --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    echo "$deployments|$daemonsets|$statefulsets"
+}
+
+get_storage_classes() {
+    kubectl get storageclass 2>/dev/null || echo "No storage classes found"
+}
+
+get_pv_status() {
+    local pv_count
+    pv_count=$(kubectl get pv --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$pv_count" -gt 0 ]; then
+        kubectl get pv 2>/dev/null
+    else
+        echo "No persistent volumes found"
+    fi
+}
+
+get_cni_status() {
+    # Check for common CNI pods
+    local cni_info=""
+
+    if kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | grep -q .; then
+        local count running
+        count=$(kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | wc -l | tr -d ' ')
+        running=$(kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | grep -c "Running" || echo 0)
+        cni_info="Calico: ${running}/${count} nodes"
+    elif kubectl get pods -n kube-system -l k8s-app=cilium --no-headers 2>/dev/null | grep -q .; then
+        local count running
+        count=$(kubectl get pods -n kube-system -l k8s-app=cilium --no-headers 2>/dev/null | wc -l | tr -d ' ')
+        running=$(kubectl get pods -n kube-system -l k8s-app=cilium --no-headers 2>/dev/null | grep -c "Running" || echo 0)
+        cni_info="Cilium: ${running}/${count} nodes"
+    elif kubectl get pods -n kube-system --no-headers 2>/dev/null | grep -q "weave"; then
+        cni_info="Weave detected"
+    elif kubectl get pods -n kube-system --no-headers 2>/dev/null | grep -q "flannel"; then
+        cni_info="Flannel detected"
+    elif kubectl get pods -n kube-system --no-headers 2>/dev/null | grep -q "kindnet"; then
+        cni_info="kindnet (kind cluster CNI)"
+    else
+        cni_info="CNI not identified (check kube-system pods)"
+    fi
+
+    echo "$cni_info"
+}
+
+get_service_discovery() {
+    local coredns_count coredns_running
+    coredns_count=$(kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$coredns_count" -eq 0 ]; then
+        coredns_count=$(kubectl get pods -n kube-system -l k8s-app=coredns --no-headers 2>/dev/null | wc -l | tr -d ' ')
+        coredns_running=$(kubectl get pods -n kube-system -l k8s-app=coredns --no-headers 2>/dev/null | grep -c "Running" || echo 0)
+    else
+        coredns_running=$(kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers 2>/dev/null | grep -c "Running" || echo 0)
+    fi
+
+    if [ "$coredns_count" -gt 0 ]; then
+        echo "CoreDNS: ${coredns_running}/${coredns_count} running"
+    else
+        echo "CoreDNS pods not found"
+    fi
+}
+
+get_recent_events() {
+    kubectl get events --all-namespaces --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || echo "No events found"
+}
+
+get_warning_events() {
+    local warnings
+    warnings=$(kubectl get events --all-namespaces --field-selector type=Warning --no-headers 2>/dev/null | wc -l | tr -d ' ')
+
+    if [ "$warnings" -gt 0 ]; then
+        echo "Found $warnings warning events:"
+        echo ""
+        kubectl get events --all-namespaces --field-selector type=Warning --sort-by='.lastTimestamp' 2>/dev/null | tail -10
+    else
+        echo "No warning events found"
+    fi
+}
+
+generate_recommendations() {
+    local health="$1"
+    local ready="$2"
+    local failed_pods="$3"
+    local pressure_nodes="$4"
+
+    local high_priority=""
+    local medium_priority=""
+    local low_priority=""
+
+    # High priority checks
+    if [ "$health" != "ok" ]; then
+        high_priority="${high_priority}- API server health check failing - investigate immediately\n"
+    fi
+    if [ "$ready" != "ok" ]; then
+        high_priority="${high_priority}- API server readiness check failing - cluster may be degraded\n"
+    fi
+    if [ "$failed_pods" -gt 0 ]; then
+        high_priority="${high_priority}- ${failed_pods} failed pods detected - investigate and clean up\n"
+    fi
+
+    # Medium priority checks
+    if [ -n "$pressure_nodes" ]; then
+        medium_priority="${medium_priority}- Nodes with resource pressure detected - review resource allocation\n"
+    fi
+
+    # Low priority (general recommendations)
+    low_priority="- Review resource requests and limits for all workloads\n- Ensure pod disruption budgets are configured for critical services\n- Verify backup and disaster recovery procedures are in place"
+
+    if [ -z "$high_priority" ]; then
+        high_priority="No high priority issues detected"
+    fi
+    if [ -z "$medium_priority" ]; then
+        medium_priority="No medium priority issues detected"
+    fi
+
+    echo "HIGH:${high_priority}|MEDIUM:${medium_priority}|LOW:${low_priority}"
 }
 
 generate_report() {
@@ -117,221 +300,230 @@ generate_report() {
 
     print_status "Collecting cluster data..."
 
-    # Gather all data
-    local cluster_info=$(get_cluster_info)
-    local cluster_name=$(echo "$cluster_info" | cut -d'|' -f1)
-    local k8s_version=$(echo "$cluster_info" | cut -d'|' -f2)
+    # Gather all data upfront
+    local cluster_name k8s_version
+    cluster_name=$(get_cluster_name)
+    k8s_version=$(get_k8s_version)
 
-    local api_health=$(check_api_health)
-    local health=$(echo "$api_health" | cut -d'|' -f1)
-    local ready=$(echo "$api_health" | cut -d'|' -f2)
-    local live=$(echo "$api_health" | cut -d'|' -f3)
+    local health ready live
+    health=$(check_api_health)
+    ready=$(check_api_ready)
+    live=$(check_api_live)
+
+    local health_icon ready_icon live_icon
+    health_icon=$([ "$health" = "ok" ] && echo "OK" || echo "FAILED")
+    ready_icon=$([ "$ready" = "ok" ] && echo "OK" || echo "FAILED")
+    live_icon=$([ "$live" = "ok" ] && echo "OK" || echo "FAILED")
+
+    local overall_health="HEALTHY"
+    if [ "$health" != "ok" ] || [ "$ready" != "ok" ]; then
+        overall_health="DEGRADED"
+    fi
 
     print_status "Analyzing nodes..."
-    local node_data=$(collect_node_data)
+    local node_summary node_conditions control_plane_status
+    node_summary=$(get_node_summary)
+    node_conditions=$(get_node_conditions)
+    control_plane_status=$(get_control_plane_status)
 
-    print_status "Analyzing pods..."
-    local pod_data=$(collect_pod_data)
+    print_status "Analyzing resources..."
+    local resource_allocation resource_concerns
+    resource_allocation=$(get_resource_allocation)
+    resource_concerns=$(get_resource_concerns)
 
     print_status "Analyzing workloads..."
-    local workload_data=$(collect_workload_data)
+    local namespace_count pod_counts workload_counts
+    namespace_count=$(get_namespace_count)
+    pod_counts=$(get_pod_counts)
+    workload_counts=$(get_workload_counts)
+
+    local total_pods running_pods pending_pods failed_pods
+    total_pods=$(echo "$pod_counts" | cut -d'|' -f1)
+    running_pods=$(echo "$pod_counts" | cut -d'|' -f2)
+    pending_pods=$(echo "$pod_counts" | cut -d'|' -f3)
+    failed_pods=$(echo "$pod_counts" | cut -d'|' -f4)
+
+    local deployments daemonsets statefulsets
+    deployments=$(echo "$workload_counts" | cut -d'|' -f1)
+    daemonsets=$(echo "$workload_counts" | cut -d'|' -f2)
+    statefulsets=$(echo "$workload_counts" | cut -d'|' -f3)
+
+    local failed_pods_status
+    if [ "$failed_pods" -gt 0 ]; then
+        failed_pods_status="WARNING: $failed_pods failed pods detected"
+    else
+        failed_pods_status="No failed pods"
+    fi
 
     print_status "Analyzing storage..."
-    local namespace_data=$(collect_namespace_data)
+    local storage_classes pv_status
+    storage_classes=$(get_storage_classes)
+    pv_status=$(get_pv_status)
 
-    print_status "Collecting recent events..."
+    print_status "Analyzing networking..."
+    local cni_status service_discovery
+    cni_status=$(get_cni_status)
+    service_discovery=$(get_service_discovery)
 
-    # Generate markdown report
-    print_status "Generating report: $output_file"
+    print_status "Collecting events..."
+    local recent_events warning_events
+    recent_events=$(get_recent_events)
+    warning_events=$(get_warning_events)
 
-    cat > "$output_file" << 'EOF'
+    print_status "Generating recommendations..."
+    local pressure_nodes
+    pressure_nodes=$(kubectl get nodes -o json 2>/dev/null | jq -r '.items[] | select(.status.conditions[] | select(.type=="DiskPressure" or .type=="MemoryPressure" or .type=="PIDPressure") | select(.status=="True")) | .metadata.name' 2>/dev/null || echo "")
+
+    local recommendations
+    recommendations=$(generate_recommendations "$health" "$ready" "$failed_pods" "$pressure_nodes")
+
+    local high_priority medium_priority low_priority
+    high_priority=$(echo "$recommendations" | sed 's/.*HIGH:\(.*\)|MEDIUM:.*/\1/')
+    medium_priority=$(echo "$recommendations" | sed 's/.*MEDIUM:\(.*\)|LOW:.*/\1/')
+    low_priority=$(echo "$recommendations" | sed 's/.*LOW:\(.*\)/\1/')
+
+    local conclusion
+    if [ "$overall_health" = "HEALTHY" ]; then
+        conclusion="The cluster is operating normally. Continue to monitor for any issues and follow the low-priority recommendations for ongoing maintenance."
+    else
+        conclusion="The cluster requires attention. Please address the high-priority recommendations immediately and review medium-priority items."
+    fi
+
+    local report_date
+    report_date=$(date '+%Y-%m-%d %H:%M:%S %Z')
+
+    print_status "Writing report: $output_file"
+
+    # Generate the full report using heredoc (portable across BSD/GNU)
+    cat > "$output_file" << EOF
 # Kubernetes Cluster Assessment Report
 
 ## Executive Summary
 
-**Cluster Name:** {{CLUSTER_NAME}}
-**Kubernetes Version:** {{K8S_VERSION}}
-**Assessment Date:** {{DATE}}
-**Overall Health:** {{OVERALL_HEALTH}}
+**Cluster Name:** ${cluster_name}
+**Kubernetes Version:** ${k8s_version}
+**Assessment Date:** ${report_date}
+**Overall Health:** ${overall_health}
 
 ---
 
 ## 1. Control Plane Health
 
 ### API Server Status
-- **Health:** {{API_HEALTH}}
-- **Readiness:** {{API_READY}}
-- **Liveness:** {{API_LIVE}}
-- **Version:** {{K8S_VERSION}}
+- **Health:** ${health_icon}
+- **Readiness:** ${ready_icon}
+- **Liveness:** ${live_icon}
+- **Version:** ${k8s_version}
 
 ### Control Plane Components
-{{CONTROL_PLANE_COMPONENTS}}
+${control_plane_status}
 
 ---
 
 ## 2. Node Health
 
 ### Node Summary
-{{NODE_SUMMARY}}
+| Name | Ready | Version |
+|------|-------|---------|
+${node_summary}
 
 ### Node Conditions
-{{NODE_CONDITIONS}}
+${node_conditions}
 
 ---
 
 ## 3. Resource Allocation and Capacity
 
 ### Node Resource Allocation
-{{RESOURCE_ALLOCATION}}
+\`\`\`
+${resource_allocation}
+\`\`\`
 
 ### Concern: Resource Overcommitment
-{{RESOURCE_CONCERNS}}
+${resource_concerns}
 
 ---
 
 ## 4. Workload Status
 
 ### Namespace Overview
-{{NAMESPACE_OVERVIEW}}
+${namespace_count} namespaces active
 
 ### Pod Status
-{{POD_STATUS}}
+- **Total Pods:** ${total_pods}
+- **Running:** ${running_pods}
+- **Pending:** ${pending_pods}
+- **Failed:** ${failed_pods}
 
 ### Workload Distribution
-- **Deployments:** {{DEPLOYMENT_COUNT}}
-- **DaemonSets:** {{DAEMONSET_COUNT}}
-- **StatefulSets:** {{STATEFULSET_COUNT}}
+- **Deployments:** ${deployments}
+- **DaemonSets:** ${daemonsets}
+- **StatefulSets:** ${statefulsets}
 
 ---
 
 ## 5. Storage Infrastructure
 
 ### Storage Classes
-{{STORAGE_CLASSES}}
+\`\`\`
+${storage_classes}
+\`\`\`
 
 ### Persistent Volumes
-{{PV_STATUS}}
+\`\`\`
+${pv_status}
+\`\`\`
 
 ---
 
 ## 6. Network Infrastructure
 
 ### CNI (Container Network Interface)
-{{CNI_STATUS}}
+${cni_status}
 
 ### Service Discovery
-{{SERVICE_DISCOVERY}}
+${service_discovery}
 
 ---
 
 ## 7. Recent Events and Alerts
 
-### Recent Events (Last 50)
-{{RECENT_EVENTS}}
+### Recent Events (Last 20)
+\`\`\`
+${recent_events}
+\`\`\`
 
 ### Warnings
-{{WARNING_EVENTS}}
+${warning_events}
 
 ### Failed Pods
-{{FAILED_PODS}}
+${failed_pods_status}
 
 ---
 
 ## 8. Recommendations
 
 ### High Priority
-{{HIGH_PRIORITY_RECOMMENDATIONS}}
+$(echo -e "$high_priority")
 
 ### Medium Priority
-{{MEDIUM_PRIORITY_RECOMMENDATIONS}}
+$(echo -e "$medium_priority")
 
 ### Low Priority
-{{LOW_PRIORITY_RECOMMENDATIONS}}
+$(echo -e "$low_priority")
 
 ---
 
 ## Conclusion
 
-{{CONCLUSION}}
+${conclusion}
 
 ---
 
-*Report generated by k8s-troubleshooter skill on {{DATE}}*
+*Report generated by k8s-troubleshooter skill on ${report_date}*
 EOF
 
-    # Now populate the template with actual data
-    sed -i.bak "s|{{CLUSTER_NAME}}|$cluster_name|g" "$output_file"
-    sed -i.bak "s|{{K8S_VERSION}}|$k8s_version|g" "$output_file"
-    sed -i.bak "s|{{DATE}}|$(date '+%Y-%m-%d %H:%M:%S %Z')|g" "$output_file"
-    sed -i.bak "s|{{API_HEALTH}}|$([ "$health" = "ok" ] && echo "✅ OK" || echo "❌ FAILED")|g" "$output_file"
-    sed -i.bak "s|{{API_READY}}|$([ "$ready" = "ok" ] && echo "✅ OK" || echo "❌ FAILED")|g" "$output_file"
-    sed -i.bak "s|{{API_LIVE}}|$([ "$live" = "ok" ] && echo "✅ OK" || echo "❌ FAILED")|g" "$output_file"
-
-    # Determine overall health
-    local overall_health="✅ HEALTHY"
-    if [ "$health" != "ok" ] || [ "$ready" != "ok" ]; then
-        overall_health="⚠️ DEGRADED"
-    fi
-    sed -i.bak "s|{{OVERALL_HEALTH}}|$overall_health|g" "$output_file"
-
-    # Add detailed sections
-    add_node_details "$output_file" "$node_data"
-    add_pod_details "$output_file" "$pod_data"
-    add_workload_details "$output_file" "$workload_data"
-    add_namespace_details "$output_file" "$namespace_data"
-
-    # Clean up backup file
-    rm -f "${output_file}.bak"
-
     print_status "Report generated successfully: $output_file"
-}
-
-add_node_details() {
-    local output_file="$1"
-    local node_data="$2"
-
-    local node_summary=$(echo "$node_data" | jq -r '.items[] | "| \(.metadata.name) | \(.status.conditions[] | select(.type=="Ready") | .status) | \(.status.nodeInfo.kubeletVersion) |"' 2>/dev/null || echo "No node data available")
-
-    # Replace placeholder with actual data
-    sed -i.bak "s|{{NODE_SUMMARY}}|$node_summary|g" "$output_file"
-}
-
-add_pod_details() {
-    local output_file="$1"
-    local pod_data="$2"
-
-    local total_pods=$(echo "$pod_data" | jq '.items | length' 2>/dev/null || echo 0)
-    local running_pods=$(echo "$pod_data" | jq '[.items[] | select(.status.phase=="Running")] | length' 2>/dev/null || echo 0)
-    local pending_pods=$(echo "$pod_data" | jq '[.items[] | select(.status.phase=="Pending")] | length' 2>/dev/null || echo 0)
-    local failed_pods=$(echo "$pod_data" | jq '[.items[] | select(.status.phase=="Failed")] | length' 2>/dev/null || echo 0)
-
-    local pod_status="- **Total Pods:** $total_pods\n- **Running:** $running_pods\n- **Pending:** $pending_pods\n- **Failed:** $failed_pods"
-
-    sed -i.bak "s|{{POD_STATUS}}|$pod_status|g" "$output_file"
-    sed -i.bak "s|{{FAILED_PODS}}|$([ "$failed_pods" -gt 0 ] && echo "⚠️ $failed_pods failed pods detected" || echo "✅ No failed pods")|g" "$output_file"
-}
-
-add_workload_details() {
-    local output_file="$1"
-    local workload_data="$2"
-
-    local deployments=$(echo "$workload_data" | cut -d'|' -f1)
-    local daemonsets=$(echo "$workload_data" | cut -d'|' -f2)
-    local statefulsets=$(echo "$workload_data" | cut -d'|' -f3)
-
-    sed -i.bak "s|{{DEPLOYMENT_COUNT}}|$deployments|g" "$output_file"
-    sed -i.bak "s|{{DAEMONSET_COUNT}}|$daemonsets|g" "$output_file"
-    sed -i.bak "s|{{STATEFULSET_COUNT}}|$statefulsets|g" "$output_file"
-}
-
-add_namespace_details() {
-    local output_file="$1"
-    local namespace_data="$2"
-
-    local namespace_list=$(echo "$namespace_data" | jq -r '.items[].metadata.name' 2>/dev/null | wc -l || echo 0)
-    local namespace_overview="$namespace_list namespaces active"
-
-    sed -i.bak "s|{{NAMESPACE_OVERVIEW}}|$namespace_overview|g" "$output_file"
 }
 
 # Parse command line arguments
