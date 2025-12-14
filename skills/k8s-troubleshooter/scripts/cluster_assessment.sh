@@ -160,17 +160,61 @@ get_namespace_count() {
     kubectl get namespaces --no-headers 2>/dev/null | wc -l | tr -d ' '
 }
 
+get_unhealthy_pods() {
+    kubectl get pods --all-namespaces -o json 2>/dev/null | jq -r '
+        .items[] |
+        select(.status.phase != "Failed") |
+        select(
+            (.status.containerStatuses // [])[] |
+            select(
+                (.state.waiting.reason // "" | test("CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerError")) or
+                (.restartCount // 0) > 5
+            )
+        ) |
+        {
+            namespace: .metadata.namespace,
+            name: .metadata.name,
+            containers: [
+                (.status.containerStatuses // [])[] |
+                select(
+                    (.state.waiting.reason // "" | test("CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerError")) or
+                    (.restartCount // 0) > 5
+                ) |
+                {
+                    status: (.state.waiting.reason // "HighRestarts"),
+                    restarts: (.restartCount // 0),
+                    message: (.state.waiting.message // "Container restarting frequently")
+                }
+            ]
+        } |
+        .namespace + "|" + .name + "|" + (.containers[0].status // "Unknown") + "|" + (.containers[0].restarts | tostring) + "|" + (.containers[0].message // "")
+    ' 2>/dev/null || echo ""
+}
+
 get_pod_counts() {
     local pod_data
     pod_data=$(kubectl get pods --all-namespaces -o json 2>/dev/null)
 
-    local total running pending failed
+    local total running pending failed unhealthy
     total=$(echo "$pod_data" | jq '.items | length' 2>/dev/null || echo 0)
     running=$(echo "$pod_data" | jq '[.items[] | select(.status.phase=="Running")] | length' 2>/dev/null || echo 0)
     pending=$(echo "$pod_data" | jq '[.items[] | select(.status.phase=="Pending")] | length' 2>/dev/null || echo 0)
     failed=$(echo "$pod_data" | jq '[.items[] | select(.status.phase=="Failed")] | length' 2>/dev/null || echo 0)
 
-    echo "$total|$running|$pending|$failed"
+    # Count unhealthy pods (not in Failed phase, but with container issues)
+    unhealthy=$(echo "$pod_data" | jq '[
+        .items[] |
+        select(.status.phase != "Failed") |
+        select(
+            (.status.containerStatuses // [])[] |
+            select(
+                (.state.waiting.reason // "" | test("CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerError")) or
+                (.restartCount // 0) > 5
+            )
+        )
+    ] | length' 2>/dev/null || echo 0)
+
+    echo "$total|$running|$pending|$failed|$unhealthy"
 }
 
 get_workload_counts() {
@@ -261,6 +305,7 @@ generate_recommendations() {
     local ready="$2"
     local failed_pods="$3"
     local pressure_nodes="$4"
+    local unhealthy_pods_data="$5"
 
     local high_priority=""
     local medium_priority=""
@@ -275,6 +320,28 @@ generate_recommendations() {
     fi
     if [ "$failed_pods" -gt 0 ]; then
         high_priority="${high_priority}- ${failed_pods} failed pods detected - investigate and clean up\n"
+    fi
+
+    # Check for unhealthy pods and generate specific recommendations
+    if [ -n "$unhealthy_pods_data" ]; then
+        while IFS='|' read -r namespace name status restarts message; do
+            if [ -n "$namespace" ]; then
+                case "$status" in
+                    CrashLoopBackOff)
+                        high_priority="${high_priority}- Pod ${name} in namespace ${namespace} is in CrashLoopBackOff - investigate logs with: kubectl logs ${name} -n ${namespace}\n"
+                        ;;
+                    ImagePullBackOff|ErrImagePull)
+                        high_priority="${high_priority}- Pod ${name} in namespace ${namespace} cannot pull image - verify image exists and pull secrets with: kubectl describe pod ${name} -n ${namespace}\n"
+                        ;;
+                    HighRestarts)
+                        medium_priority="${medium_priority}- Pod ${name} in namespace ${namespace} has high restart count (${restarts}) - review pod stability and resource limits\n"
+                        ;;
+                    CreateContainerError)
+                        high_priority="${high_priority}- Pod ${name} in namespace ${namespace} has container creation error - check configuration with: kubectl describe pod ${name} -n ${namespace}\n"
+                        ;;
+                esac
+            fi
+        done <<< "$unhealthy_pods_data"
     fi
 
     # Medium priority checks
@@ -315,11 +382,6 @@ generate_report() {
     ready_icon=$([ "$ready" = "ok" ] && echo "OK" || echo "FAILED")
     live_icon=$([ "$live" = "ok" ] && echo "OK" || echo "FAILED")
 
-    local overall_health="HEALTHY"
-    if [ "$health" != "ok" ] || [ "$ready" != "ok" ]; then
-        overall_health="DEGRADED"
-    fi
-
     print_status "Analyzing nodes..."
     local node_summary node_conditions control_plane_status
     node_summary=$(get_node_summary)
@@ -332,16 +394,18 @@ generate_report() {
     resource_concerns=$(get_resource_concerns)
 
     print_status "Analyzing workloads..."
-    local namespace_count pod_counts workload_counts
+    local namespace_count pod_counts workload_counts unhealthy_pods_data
     namespace_count=$(get_namespace_count)
     pod_counts=$(get_pod_counts)
     workload_counts=$(get_workload_counts)
+    unhealthy_pods_data=$(get_unhealthy_pods)
 
-    local total_pods running_pods pending_pods failed_pods
+    local total_pods running_pods pending_pods failed_pods unhealthy_pods
     total_pods=$(echo "$pod_counts" | cut -d'|' -f1)
     running_pods=$(echo "$pod_counts" | cut -d'|' -f2)
     pending_pods=$(echo "$pod_counts" | cut -d'|' -f3)
     failed_pods=$(echo "$pod_counts" | cut -d'|' -f4)
+    unhealthy_pods=$(echo "$pod_counts" | cut -d'|' -f5)
 
     local deployments daemonsets statefulsets
     deployments=$(echo "$workload_counts" | cut -d'|' -f1)
@@ -353,6 +417,28 @@ generate_report() {
         failed_pods_status="WARNING: $failed_pods failed pods detected"
     else
         failed_pods_status="No failed pods"
+    fi
+
+    # Format unhealthy pods for report
+    local unhealthy_pods_report=""
+    if [ -n "$unhealthy_pods_data" ] && [ "$unhealthy_pods" -gt 0 ]; then
+        unhealthy_pods_report="| Namespace | Pod Name | Status | Restarts | Reason |\n"
+        unhealthy_pods_report="${unhealthy_pods_report}|-----------|----------|--------|----------|--------|\n"
+        while IFS='|' read -r namespace name status restarts message; do
+            if [ -n "$namespace" ]; then
+                unhealthy_pods_report="${unhealthy_pods_report}| ${namespace} | ${name} | ${status} | ${restarts} | ${message} |\n"
+            fi
+        done <<< "$unhealthy_pods_data"
+    else
+        unhealthy_pods_report="No unhealthy pods detected"
+    fi
+
+    # Determine overall health after collecting all data
+    local overall_health="HEALTHY"
+    if [ "$health" != "ok" ] || [ "$ready" != "ok" ]; then
+        overall_health="DEGRADED"
+    elif [ "$unhealthy_pods" -gt 0 ]; then
+        overall_health="DEGRADED"
     fi
 
     print_status "Analyzing storage..."
@@ -375,7 +461,7 @@ generate_report() {
     pressure_nodes=$(kubectl get nodes -o json 2>/dev/null | jq -r '.items[] | select(.status.conditions[] | select(.type=="DiskPressure" or .type=="MemoryPressure" or .type=="PIDPressure") | select(.status=="True")) | .metadata.name' 2>/dev/null || echo "")
 
     local recommendations
-    recommendations=$(generate_recommendations "$health" "$ready" "$failed_pods" "$pressure_nodes")
+    recommendations=$(generate_recommendations "$health" "$ready" "$failed_pods" "$pressure_nodes" "$unhealthy_pods_data")
 
     local high_priority medium_priority low_priority
     high_priority=$(echo "$recommendations" | sed 's/.*HIGH:\(.*\)|MEDIUM:.*/\1/')
@@ -383,10 +469,15 @@ generate_report() {
     low_priority=$(echo "$recommendations" | sed 's/.*LOW:\(.*\)/\1/')
 
     local conclusion
+    local health_summary=""
     if [ "$overall_health" = "HEALTHY" ]; then
         conclusion="The cluster is operating normally. Continue to monitor for any issues and follow the low-priority recommendations for ongoing maintenance."
+        health_summary=""
     else
         conclusion="The cluster requires attention. Please address the high-priority recommendations immediately and review medium-priority items."
+        if [ "$unhealthy_pods" -gt 0 ]; then
+            health_summary="**Note:** ${unhealthy_pods} unhealthy pod(s) detected with container issues (CrashLoopBackOff, ImagePullBackOff, or high restart counts)."
+        fi
     fi
 
     local report_date
@@ -404,6 +495,8 @@ generate_report() {
 **Kubernetes Version:** ${k8s_version}
 **Assessment Date:** ${report_date}
 **Overall Health:** ${overall_health}
+
+${health_summary}
 
 ---
 
@@ -454,6 +547,10 @@ ${namespace_count} namespaces active
 - **Running:** ${running_pods}
 - **Pending:** ${pending_pods}
 - **Failed:** ${failed_pods}
+- **Unhealthy:** ${unhealthy_pods}
+
+### Unhealthy Pods
+$(echo -e "$unhealthy_pods_report")
 
 ### Workload Distribution
 - **Deployments:** ${deployments}
