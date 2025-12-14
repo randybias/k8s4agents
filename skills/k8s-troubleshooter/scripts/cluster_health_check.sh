@@ -131,6 +131,46 @@ check_control_plane() {
         print_warning "API server readiness check failed"
     fi
 
+    # Check readiness with verbose output for component-level status
+    local readyz_verbose
+    readyz_verbose=$(kubectl get --raw /readyz?verbose 2>/dev/null || echo "")
+
+    if [ -n "$readyz_verbose" ]; then
+        # Check overall readiness status from verbose output
+        if echo "$readyz_verbose" | grep -q "readyz check passed"; then
+            print_success "All readiness checks passed"
+        elif echo "$readyz_verbose" | grep -q "readyz check failed"; then
+            print_error "Readiness checks failed"
+        fi
+
+        # Parse component-level status in verbose mode
+        if [ "$VERBOSE" = true ]; then
+            print_info "Component readiness details:"
+            # Extract component status lines (format: [+]component or [-]component)
+            echo "$readyz_verbose" | grep -E '^\[[-+]\]' | while IFS= read -r line; do
+                if echo "$line" | grep -q '^\[+\]'; then
+                    # Component is healthy
+                    component=$(echo "$line" | sed 's/^\[+\]//')
+                    print_info "  ${GREEN}✓${NC} $component"
+                elif echo "$line" | grep -q '^\[-\]'; then
+                    # Component is failing
+                    component=$(echo "$line" | sed 's/^\[-\]//')
+                    print_info "  ${RED}✗${NC} $component"
+                fi
+            done
+        else
+            # Show only failing components in non-verbose mode
+            local failing_components
+            failing_components=$(echo "$readyz_verbose" | grep -E '^\[-\]' | sed 's/^\[-\]//' || echo "")
+            if [ -n "$failing_components" ]; then
+                print_warning "Failing readiness components:"
+                echo "$failing_components" | while IFS= read -r component; do
+                    print_error "  $component"
+                done
+            fi
+        fi
+    fi
+
     # Check liveness
     if kubectl get --raw /livez &> /dev/null; then
         print_success "API server is alive"

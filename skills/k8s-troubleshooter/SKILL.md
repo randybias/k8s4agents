@@ -31,6 +31,7 @@ This skill encodes expert Kubernetes troubleshooting workflows for diagnosing co
 
 Use these trigger patterns for fast workflow access:
 
+- `/incident-triage` - Production incident response (FIRST STEP for any incident)
 - `/pod-debug` - Pod not starting or crashing
 - `/svc-debug` - Service unreachable or DNS issues
 - `/storage-debug` - PVC pending or mount failures
@@ -40,6 +41,63 @@ Use these trigger patterns for fast workflow access:
 - `/full-diag` - Comprehensive cluster health check
 - `/cluster-assessment` - Generate comprehensive cluster assessment report
 
+## Incident Response (Start Here for Production Issues)
+
+**When to use**: Any production incident, outage, or unexpected cluster behavior.
+
+### Automated Incident Triage (Primary Method)
+
+```bash
+# Run comprehensive incident triage
+~/.claude/skills/k8s-troubleshooter/scripts/incident_triage.sh
+
+# Quick triage without full cluster dump (faster, recommended for urgent incidents)
+~/.claude/skills/k8s-troubleshooter/scripts/incident_triage.sh --skip-dump
+
+# Scope to specific namespace
+~/.claude/skills/k8s-troubleshooter/scripts/incident_triage.sh --namespace production
+
+# Custom output directory
+~/.claude/skills/k8s-troubleshooter/scripts/incident_triage.sh --output-dir /tmp/incident-20231201
+```
+
+The incident triage script:
+1. **Captures evidence** - Preserves cluster state before investigation (nodes, pods, events, optional cluster-info dump)
+2. **Checks control plane** - Uses `/readyz?verbose` for component-level health status
+3. **Assesses blast radius** - Classifies impact: single pod, namespace, multiple namespaces, or cluster-wide
+4. **Classifies symptoms** - Detects crash loops, OOM, scheduling failures, DNS/network issues, storage problems
+5. **Recommends workflows** - Provides specific diagnostic scripts and commands based on detected symptoms
+6. **Generates report** - Creates markdown report with executive summary and text summary for quick reference
+
+**Output**: Triage report with blast radius, symptoms, recommended next steps, and captured evidence.
+
+**Use this FIRST** when responding to production incidents. It provides the systematic assessment needed to guide investigation without making the situation worse.
+
+### Decision Tree Quick Reference
+
+See `references/incident-response.md` for complete triage decision tree and investigation workflows.
+
+**Quick symptom-to-workflow mapping**:
+- **Pods Pending** → `pod_diagnostics.sh` (check scheduling, resources, taints)
+- **CrashLoopBackOff** → `pod_diagnostics.sh -l -p` (check logs, exit codes)
+- **OOMKilled** → `pod_diagnostics.sh` (check memory limits, usage)
+- **DNS/Network issues** → `network_debug.sh` (check CoreDNS, endpoints, policies)
+- **Storage failures** → `storage_check.sh` (check PVC, CSI driver, attachments)
+- **Node problems** → `cluster_health_check.sh` (check conditions, pressure)
+- **Control plane degraded** → `cluster_health_check.sh` (check components, API server)
+
+### First 5 Minutes Checklist
+
+When a production incident is reported:
+
+1. **Assess urgency** - Can you access the cluster? Are users impacted?
+2. **Run incident triage** - `incident_triage.sh --skip-dump` for fast assessment
+3. **Stabilize if critical** - Consider immediate actions (scale, rollback) only if necessary
+4. **Preserve evidence** - Triage script captures this automatically
+5. **Follow recommendations** - Use triage report to guide investigation
+
+**Remember**: Evidence first, action second. The triage script preserves state before changes.
+
 ## Automation First
 
 **Priority**: Use automation scripts before manual command workflows. Scripts provide production-tested diagnostic flows and generate structured output.
@@ -48,6 +106,9 @@ Use these trigger patterns for fast workflow access:
 
 | Task | Script | Invocation |
 |------|--------|------------|
+| **Production incident triage** | `incident_triage.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/incident_triage.sh --skip-dump` |
+| Incident triage (with cluster dump) | `incident_triage.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/incident_triage.sh` |
+| Incident triage (namespace-scoped) | `incident_triage.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/incident_triage.sh --namespace <NAMESPACE>` |
 | Cluster health check | `cluster_health_check.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/cluster_health_check.sh` |
 | Cluster assessment report | `cluster_assessment.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/cluster_assessment.sh` |
 | Cluster assessment (custom output) | `cluster_assessment.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/cluster_assessment.sh -o custom-report.md` |
@@ -590,14 +651,24 @@ kubectl run -it --rm netshoot-2 --image=nicolaka/netshoot --restart=Never -- \
 
 ## Incident Response Playbooks
 
-For common scenarios, see `references/incident-playbooks.md`:
+For structured incident response workflows, see `references/incident-response.md`:
 
-- **CrashLoopBackOff**: Application crash recovery workflow
-- **OOMKilled**: Memory pressure investigation and tuning
-- **DNS Failures**: CoreDNS troubleshooting and resolution
-- **Node Pressure**: Disk, memory, PID pressure handling
+- **Incident Triage Decision Tree**: Symptom-based classification and workflow selection
+- **Evidence Preservation**: Best practices for capturing cluster state
+- **Investigation Workflows by Symptom**: Detailed steps for each common failure pattern
+  - Pods Pending: Scheduling and resource constraints
+  - CrashLoopBackOff: Application crash recovery
+  - OOMKilled: Memory pressure investigation
+  - DNS/Network Issues: CoreDNS and connectivity troubleshooting
+  - Storage Failures: PVC and CSI driver diagnostics
+  - Node Problems: NotReady nodes and resource pressure
+- **Stabilization Techniques**: Safe remediation actions for production
+- **Common Incident Patterns**: Real-world scenarios and responses
+- **Post-Incident Review**: Documentation and improvement process
+
+For additional common scenarios, see `references/incident-playbooks.md`:
+
 - **ImagePullBackOff**: Registry access and authentication
-- **Pending Pods**: Scheduling failures and resource constraints
 - **Stuck Terminating**: Finalizer and graceful shutdown issues
 
 ## Production Safety Guidelines
@@ -633,6 +704,16 @@ For automated kubectl access, see `references/mcp-integration.md` for:
 **Getting Help**: All scripts support `-h` flag for detailed usage information and parameter descriptions.
 
 ### Available Scripts
+
+**Incident Triage** (`incident_triage.sh`) **[NEW - USE FIRST FOR INCIDENTS]**
+- Production incident response and triage workflow
+- Captures evidence, assesses blast radius, classifies symptoms, recommends workflows
+- Output: Markdown report with executive summary and captured evidence
+```bash
+~/.claude/skills/k8s-troubleshooter/scripts/incident_triage.sh --skip-dump
+~/.claude/skills/k8s-troubleshooter/scripts/incident_triage.sh --namespace production
+~/.claude/skills/k8s-troubleshooter/scripts/incident_triage.sh --output-dir /tmp/incident-123
+```
 
 **Cluster Health Check** (`cluster_health_check.sh`)
 - Automated baseline cluster health check
@@ -681,6 +762,7 @@ For automated kubectl access, see `references/mcp-integration.md` for:
 ## Additional Resources
 
 **References**:
+- `references/incident-response.md`: **[NEW]** Incident triage decision tree and response workflows
 - `references/pod-troubleshooting.md`: Pod lifecycle deep dive
 - `references/service-networking.md`: Service and ingress troubleshooting
 - `references/storage-csi.md`: Storage and CSI driver diagnostics
