@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hook-no-delete-policy
+description: Test chart with hook lacking delete policy
+type: application
+version: 1.0.0
+appVersion: "1.0"

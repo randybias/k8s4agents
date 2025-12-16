@@ -116,7 +116,9 @@ When a production incident is reported:
 | Pod diagnostics | `pod_diagnostics.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/pod_diagnostics.sh <POD_NAME> <NAMESPACE>` |
 | Network debugging | `network_debug.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/network_debug.sh <NAMESPACE>` |
 | Storage check | `storage_check.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/storage_check.sh <NAMESPACE>` |
-| Helm release debug | `helm_release_debug.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE>` |
+| Helm release debug (basic) | `helm_release_debug.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE>` |
+| Helm release with chart validation | `helm_release_debug.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE> --chart <CHART_PATH> --values <VALUES_FILE>` |
+| Helm release with tests | `helm_release_debug.sh` | `~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE> --run-tests` |
 
 **Script Location**: All scripts are in `~/.claude/skills/k8s-troubleshooter/scripts/`
 
@@ -406,7 +408,160 @@ kubectl get pdb --all-namespaces
 
 ## Workflow 5: Helm Debugging (/helm-debug)
 
-### Phase 1: Release Status
+> **AUTOMATED SCRIPT AVAILABLE**: Use `helm_release_debug.sh` for comprehensive Helm release diagnostics.
+
+### Automated Helm Debug (Primary Method)
+
+```bash
+# Basic release diagnostics
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE>
+
+# Include chart validation (lint, template, dry-run)
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE> \
+  --chart <CHART_PATH> --values <VALUES_FILE>
+
+# Run post-install tests with the release
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE> --run-tests
+
+# Full validation: chart lint, template, dry-run, and tests
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE> \
+  --chart <CHART_PATH> --values <VALUES_FILE> --run-tests --run-dry-run
+
+# Compare current release with proposed changes
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE> \
+  --chart <CHART_PATH> --values <VALUES_FILE> --diff
+
+# Custom output format (json, yaml, table)
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE> --output json
+```
+
+The script automatically provides:
+
+**Core Diagnostics** (always included):
+- Release status, history, and current values
+- Deployed resource status and health
+- Hook execution details (jobs, pods, logs)
+- Recent events and error messages
+- Release state clarity (last_error reporting, empty manifest detection)
+- Helm secret validation
+- Pod status with standard Helm labels
+
+**Hook-Aware Diagnostics**:
+- Lists all hooks defined in the release (`helm get hooks`)
+- Shows hook job and pod details
+- Displays hook execution logs
+- Identifies failed hook phases (pre-install, post-install, pre-upgrade, post-upgrade, pre-delete, post-delete)
+- Reports aged-out events for hooks
+
+**Optional Chart Validation** (with `--chart` flag):
+- Chart linting (`helm lint`) with detailed error reporting
+- Template rendering (`helm template`) to catch syntax errors
+- Dry-run installation/upgrade (`helm upgrade --dry-run --debug`) with `--run-dry-run` flag
+- Value file validation and override testing with `--set*` flags
+- Diff comparison between current and proposed release with `--diff` flag
+
+**Optional Post-Install Tests** (with `--run-tests` flag):
+- Executes `helm test` for the release
+- Provides failure summaries with test pod details
+- Shows test logs for failed tests
+- Reports test execution timeout issues
+
+### When to Use Each Flag
+
+**Basic Diagnostics** (no flags):
+- Release is stuck or failed
+- Need to understand current release state
+- Checking deployed resource health
+- Initial troubleshooting phase
+
+**`--chart <PATH> --values <FILE>`** (Chart Validation):
+- Before performing an upgrade
+- Template rendering errors suspected
+- Validating chart syntax changes
+- Testing value overrides
+- Use when you have access to chart files
+
+**`--run-dry-run`** (with `--chart`):
+- Want to see what would change without applying
+- Testing complex upgrades
+- Validating cluster-side mutations (admission webhooks, mutating webhooks)
+- Checking API compatibility
+
+**`--diff`** (with `--chart`):
+- Need to see exact changes between current and proposed release
+- Reviewing impact of value changes
+- Understanding configuration drift
+- Pre-upgrade review
+
+**`--run-tests`**:
+- Release deployed but functionality uncertain
+- Post-upgrade validation
+- Smoke testing after remediation
+- Continuous validation in CI/CD
+
+**`--set*` flags** (`--set`, `--set-string`, `--set-file`):
+- Quick value overrides without modifying values file
+- Testing specific configuration changes
+- Override single values for validation
+
+**`--output <format>`** (json, yaml, table):
+- Integrating with automation or CI/CD
+- Parsing output programmatically
+- Generating structured reports
+
+### Usage Examples
+
+**Scenario 1: Failed Helm Upgrade**
+```bash
+# Start with basic diagnostics
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh myapp production
+
+# If template issues suspected, validate chart
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh myapp production \
+  --chart ./charts/myapp --values values-prod.yaml
+```
+
+**Scenario 2: Release Stuck in Pending-Upgrade**
+```bash
+# Check release state and hooks
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh myapp production
+
+# Review what would happen on retry with dry-run
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh myapp production \
+  --chart ./charts/myapp --values values-prod.yaml --run-dry-run
+```
+
+**Scenario 3: Post-Upgrade Validation**
+```bash
+# Run tests to verify functionality
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh myapp production --run-tests
+
+# Check difference from previous version
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh myapp production \
+  --chart ./charts/myapp --values values-prod.yaml --diff
+```
+
+**Scenario 4: Pre-Upgrade Review**
+```bash
+# Full validation before upgrade
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh myapp production \
+  --chart ./charts/myapp-v2 --values values-prod.yaml \
+  --run-dry-run --diff --run-tests
+```
+
+**Scenario 5: Hook Failure Investigation**
+```bash
+# Script automatically shows hook details including:
+# - Hook definitions from release
+# - Hook job/pod status
+# - Hook execution logs
+# - Failed hook phases
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh myapp production
+```
+
+### Manual Fallback (when script unavailable)
+
+#### Phase 1: Release Status
 
 ```bash
 # List releases
@@ -417,9 +572,12 @@ helm status <RELEASE_NAME> -n <NAMESPACE>
 
 # Check release history
 helm history <RELEASE_NAME> -n <NAMESPACE>
+
+# Check for release errors
+helm status <RELEASE_NAME> -n <NAMESPACE> -o json | jq '.info.status, .info.description'
 ```
 
-### Phase 2: Template Validation
+#### Phase 2: Template Validation
 
 ```bash
 # Lint chart
@@ -430,9 +588,25 @@ helm template <RELEASE_NAME> <CHART_PATH> -n <NAMESPACE> --values <VALUES_FILE>
 
 # Dry-run install/upgrade
 helm upgrade --install <RELEASE_NAME> <CHART_PATH> -n <NAMESPACE> --dry-run --debug
+
+# Show diff between releases
+helm diff upgrade <RELEASE_NAME> <CHART_PATH> -n <NAMESPACE> --values <VALUES_FILE>
 ```
 
-### Phase 3: Stuck Release Recovery
+#### Phase 3: Hook Diagnostics
+
+```bash
+# Get hooks for release
+helm get hooks <RELEASE_NAME> -n <NAMESPACE>
+
+# Check hook job status
+kubectl get jobs -n <NAMESPACE> -l app.kubernetes.io/managed-by=Helm
+
+# Get hook pod logs
+kubectl logs -n <NAMESPACE> -l app.kubernetes.io/managed-by=Helm --tail=100
+```
+
+#### Phase 4: Stuck Release Recovery
 
 ```bash
 # Check for pending upgrades
@@ -443,7 +617,34 @@ kubectl get secrets -n <NAMESPACE> -l owner=helm
 
 # Check deployed resources
 helm get manifest <RELEASE_NAME> -n <NAMESPACE> | kubectl get -f -
+
+# Run post-install tests
+helm test <RELEASE_NAME> -n <NAMESPACE>
 ```
+
+### Release State Clarity
+
+The script provides clear reporting on:
+
+**Empty Manifest Detection**:
+- Warns when release has no deployed resources
+- Helps identify chart configuration issues
+- Indicates potential template rendering problems
+
+**Last Error Reporting**:
+- Shows error from most recent failed operation
+- Includes error messages from Helm's perspective
+- Helps diagnose why releases are stuck
+
+**Aged-Out Events**:
+- Identifies when events have expired (default 1 hour TTL)
+- Prevents confusion from missing event data
+- Recommends checking Helm release history instead
+
+**Hook State Tracking**:
+- Shows which hooks succeeded/failed
+- Reports hook execution order
+- Identifies hanging or incomplete hooks
 
 **Deep Dive**: See `references/helm-debugging.md` for upgrade failures, rollback procedures, and secret/state cleanup.
 
@@ -753,10 +954,21 @@ For automated kubectl access, see `references/mcp-integration.md` for:
 ```
 
 **Helm Release Debug** (`helm_release_debug.sh`)
-- Helm release investigation and troubleshooting
-- Covers: release status, template validation, stuck release detection
+- Comprehensive Helm release diagnostics and troubleshooting
+- Core: release status, history, deployed resources, hook diagnostics
+- Optional: chart validation (lint, template, dry-run), post-install tests, diff comparison
+- Flags: `--chart`, `--values`, `--set*`, `--run-tests`, `--run-dry-run`, `--diff`, `--output`
 ```bash
+# Basic diagnostics
 ~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE>
+
+# With chart validation
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE> \
+  --chart <CHART_PATH> --values <VALUES_FILE>
+
+# Full validation with tests and dry-run
+~/.claude/skills/k8s-troubleshooter/scripts/helm_release_debug.sh <RELEASE_NAME> <NAMESPACE> \
+  --chart <CHART_PATH> --values <VALUES_FILE> --run-tests --run-dry-run --diff
 ```
 
 ## Additional Resources

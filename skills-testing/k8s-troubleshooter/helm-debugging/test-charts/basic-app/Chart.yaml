@@ -1,0 +1,6 @@
+apiVersion: v2
+name: basic-app
+description: Basic working app for missing resources test
+type: application
+version: 1.0.0
+appVersion: "1.0"

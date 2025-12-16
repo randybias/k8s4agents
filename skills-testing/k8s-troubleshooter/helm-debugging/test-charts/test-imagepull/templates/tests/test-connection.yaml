@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Chart.Name }}-test-imagepull"
+  labels:
+    app: test-app
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  containers:
+  - name: test
+    image: nonexistent-registry.example.com/test-image:does-not-exist
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        echo "Running connectivity test..."
+        wget -O- http://{{ .Chart.Name }}:{{ .Values.service.port }}/
+  restartPolicy: Never

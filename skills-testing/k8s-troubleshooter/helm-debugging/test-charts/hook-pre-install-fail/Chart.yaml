@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hook-pre-install-fail
+description: Test chart with failing pre-install hook
+type: application
+version: 1.0.0
+appVersion: "1.0"

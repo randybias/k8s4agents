@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: test-app
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: test-app
+  template:
+    metadata:
+      labels:
+        app: test-app
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.35
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            echo "Starting application..."
+            echo "Loading configuration from /config/config.yaml"
+            cat /config/config.yaml
+
+            # Simulate app crashing due to invalid config
+            LOG_LEVEL=$(grep logLevel /config/config.yaml | cut -d: -f2 | tr -d ' ')
+            if [ "$LOG_LEVEL" = "INVALID_LOG_LEVEL" ]; then
+              echo "ERROR: Invalid log level '$LOG_LEVEL'"
+              echo "Valid values are: DEBUG, INFO, WARN, ERROR"
+              exit 1
+            fi
+
+            MAX_CONN=$(grep maxConnections /config/config.yaml | cut -d: -f2 | tr -d ' ')
+            if ! echo "$MAX_CONN" | grep -qE '^[0-9]+$'; then
+              echo "ERROR: maxConnections must be a number, got '$MAX_CONN'"
+              exit 1
+            fi
+
+            API=$(grep apiEndpoint /config/config.yaml | cut -d: -f2 | tr -d ' ')
+            if [ -z "$API" ]; then
+              echo "ERROR: apiEndpoint cannot be empty"
+              exit 1
+            fi
+
+            echo "Configuration valid, starting server..."
+            # This line never reached due to config errors
+            sleep infinity
+        volumeMounts:
+        - name: config
+          mountPath: /config
+      volumes:
+      - name: config
+        configMap:
+          name: {{ .Chart.Name }}-config

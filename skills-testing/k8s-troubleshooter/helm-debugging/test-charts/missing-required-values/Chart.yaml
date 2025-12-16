@@ -1,0 +1,6 @@
+apiVersion: v2
+name: missing-required-values
+description: Test chart with missing required values
+type: application
+version: 1.0.0
+appVersion: "1.0"

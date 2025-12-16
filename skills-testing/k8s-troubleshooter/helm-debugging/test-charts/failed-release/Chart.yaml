@@ -1,0 +1,6 @@
+apiVersion: v2
+name: failed-release
+description: Test chart that fails due to invalid image
+type: application
+version: 1.0.0
+appVersion: "1.0"

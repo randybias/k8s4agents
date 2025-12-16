@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Chart.Name }}-test-timeout"
+  labels:
+    app: test-app
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  containers:
+  - name: test
+    image: busybox:1.35
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        echo "Starting test that will take too long..."
+        echo "This test runs for 120 seconds"
+        sleep 120
+        echo "Test complete (but helm test will timeout before this)"
+        wget -O- http://{{ .Chart.Name }}:{{ .Values.service.port }}/
+  restartPolicy: Never

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Chart.Name }}-test-connection"
+  labels:
+    app: test-app
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  containers:
+  - name: test
+    image: busybox:1.35
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        echo "Testing connectivity to {{ .Chart.Name }}:{{ .Values.service.port }}"
+        wget --timeout=5 --tries=1 -O- http://{{ .Chart.Name }}:{{ .Values.service.port }}/ || exit 1
+        echo "Connection successful"
+  restartPolicy: Never

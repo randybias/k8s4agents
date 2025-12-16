@@ -1,0 +1,6 @@
+apiVersion: v2
+name: lint-fail-syntax
+description: Test chart with YAML syntax errors
+type: application
+version: 1.0.0
+appVersion: "1.0"

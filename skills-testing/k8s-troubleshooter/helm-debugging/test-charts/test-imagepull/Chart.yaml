@@ -1,0 +1,6 @@
+apiVersion: v2
+name: test-imagepull
+description: Test chart with test pod that cannot pull image
+type: application
+version: 1.0.0
+appVersion: "1.0"

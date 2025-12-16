@@ -1,0 +1,20 @@
+apiVersion: batch/v2alpha1
+kind: CronJob
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: test-app
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: test-app
+        spec:
+          containers:
+          - name: nginx
+            image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+            command: ["/bin/sh", "-c", "echo Hello"]
+          restartPolicy: OnFailure

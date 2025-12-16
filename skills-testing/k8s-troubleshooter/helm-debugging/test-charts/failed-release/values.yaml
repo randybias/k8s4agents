@@ -1,0 +1,10 @@
+replicaCount: 1
+
+image:
+  repository: nonexistent-registry.example.com/invalid-image
+  tag: "does-not-exist"
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 80

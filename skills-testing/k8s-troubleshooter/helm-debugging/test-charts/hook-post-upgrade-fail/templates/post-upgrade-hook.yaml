@@ -1,0 +1,29 @@
+{{- if .Values.failPostUpgrade }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-post-upgrade-fail
+  labels:
+    app: test-app
+  annotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        app: test-app
+        helm.sh/hook: post-upgrade
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: post-upgrade-fail
+        image: busybox:1.35
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            echo "Running post-upgrade hook..."
+            echo "Simulating post-upgrade task failure (e.g., cache warm-up failed)"
+            exit 1
+{{- end }}

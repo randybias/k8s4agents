@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-timeout-hook
+  labels:
+    app: test-app
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  activeDeadlineSeconds: 30
+  template:
+    metadata:
+      labels:
+        app: test-app
+        helm.sh/hook: pre-install
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: timeout-hook
+        image: busybox:1.35
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            echo "Starting long-running task that will timeout..."
+            echo "This task takes 120 seconds but job times out at 30 seconds"
+            sleep 120
+            echo "This line will never be reached"

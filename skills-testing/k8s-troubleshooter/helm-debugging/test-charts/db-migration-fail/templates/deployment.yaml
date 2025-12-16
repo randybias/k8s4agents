@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: test-app
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: test-app
+  template:
+    metadata:
+      labels:
+        app: test-app
+    spec:
+      containers:
+      - name: nginx
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        ports:
+        - containerPort: 80
+        env:
+        - name: DATABASE_HOST
+          value: {{ .Values.database.host }}
+        - name: DATABASE_PORT
+          value: {{ .Values.database.port | quote }}
+        - name: DATABASE_NAME
+          value: {{ .Values.database.name }}

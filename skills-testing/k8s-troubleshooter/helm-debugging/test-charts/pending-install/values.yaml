@@ -1,0 +1,6 @@
+replicaCount: 1
+
+image:
+  repository: busybox
+  tag: "1.35"
+  pullPolicy: IfNotPresent

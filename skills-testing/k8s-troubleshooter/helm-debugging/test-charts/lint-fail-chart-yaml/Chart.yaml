@@ -1,0 +1,5 @@
+apiVersion: v2
+name: lint-fail-chart-yaml
+description: Test chart with invalid Chart.yaml (missing version)
+type: application
+appVersion: "1.0"

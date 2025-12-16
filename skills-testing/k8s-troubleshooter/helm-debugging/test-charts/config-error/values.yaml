@@ -1,0 +1,11 @@
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: "1.21"
+  pullPolicy: IfNotPresent
+
+config:
+  logLevel: INVALID_LOG_LEVEL
+  maxConnections: "not-a-number"
+  apiEndpoint: ""

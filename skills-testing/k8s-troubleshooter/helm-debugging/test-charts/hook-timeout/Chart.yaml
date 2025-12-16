@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hook-timeout
+description: Test chart with hook that times out
+type: application
+version: 1.0.0
+appVersion: "1.0"

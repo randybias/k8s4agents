@@ -1,0 +1,6 @@
+apiVersion: v2
+name: rbac-restricted
+description: Test chart with RBAC requirements
+type: application
+version: 1.0.0
+appVersion: "1.0"

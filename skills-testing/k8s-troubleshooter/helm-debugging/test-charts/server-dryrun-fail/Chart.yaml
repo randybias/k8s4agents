@@ -1,0 +1,6 @@
+apiVersion: v2
+name: server-dryrun-fail
+description: Test chart that fails server-side dry-run but passes client-side
+type: application
+version: 1.0.0
+appVersion: "1.0"

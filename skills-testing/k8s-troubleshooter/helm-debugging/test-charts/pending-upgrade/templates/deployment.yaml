@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: test-app
+    version: {{ .Values.version }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: test-app
+  template:
+    metadata:
+      labels:
+        app: test-app
+        version: {{ .Values.version }}
+    spec:
+      containers:
+      - name: app
+        {{- if .Values.failUpgrade }}
+        image: nonexistent-registry.example.com/invalid-image:does-not-exist
+        {{- else }}
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        {{- end }}
+        ports:
+        - containerPort: 80
+        env:
+        - name: VERSION
+          value: {{ .Values.version }}

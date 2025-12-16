@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-test-connection"
+  labels:
+    app: test-app
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  containers:
+  - name: test
+    image: curlimages/curl:7.85.0
+    command:
+    - sh
+    - -c
+    - |
+      echo "Starting connectivity test..."
+      echo "Testing service endpoint: {{ .Release.Name }}-service:{{ .Values.service.port }}"
+
+      # This curl will fail because we're checking a non-existent endpoint
+      if curl -f -m 10 http://{{ .Release.Name }}-service:{{ .Values.service.port }}/nonexistent-endpoint; then
+        echo "Test PASSED"
+        exit 0
+      else
+        echo "Test FAILED: Endpoint returned error or does not exist"
+        exit 1
+      fi
+  restartPolicy: Never

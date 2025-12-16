@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-db-migration
+  labels:
+    app: test-app
+    job: migration
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        app: test-app
+        helm.sh/hook: pre-install
+        job: migration
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: migration
+        image: postgres:14-alpine
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            echo "Starting database migration..."
+            echo "Connecting to {{ .Values.database.host }}:{{ .Values.database.port }}"
+
+            # Attempt to connect (will fail with nonexistent host)
+            PGPASSWORD=password psql -h {{ .Values.database.host }} \
+              -p {{ .Values.database.port }} \
+              -U postgres \
+              -d {{ .Values.database.name }} \
+              -c "SELECT 1;" 2>&1
+
+            if [ $? -ne 0 ]; then
+              echo "ERROR: Failed to connect to database"
+              echo "Migration failed"
+              exit 1
+            fi
+
+            echo "Running migrations..."
+            echo "Migration complete"

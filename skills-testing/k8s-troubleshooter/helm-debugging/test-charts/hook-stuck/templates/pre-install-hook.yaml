@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-stuck-hook
+  labels:
+    app: test-app
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        app: test-app
+        helm.sh/hook: pre-install
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: stuck-hook
+        image: busybox:1.35
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            echo "Starting hook that will never complete..."
+            while true; do
+              echo "Still running... ($(date))"
+              sleep 10
+            done

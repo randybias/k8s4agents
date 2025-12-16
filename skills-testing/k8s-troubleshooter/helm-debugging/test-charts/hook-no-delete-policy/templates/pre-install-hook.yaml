@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-pre-install-{{ .Values.version }}
+  labels:
+    app: test-app
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-5"
+spec:
+  template:
+    metadata:
+      labels:
+        app: test-app
+        helm.sh/hook: pre-install
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: pre-install
+        image: busybox:1.35
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            echo "Running pre-install hook for version {{ .Values.version }}"
+            echo "This hook has NO delete policy, so it will persist"
+            exit 0

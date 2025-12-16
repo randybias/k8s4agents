@@ -1,0 +1,6 @@
+apiVersion: v2
+name: config-error
+description: Test chart with configuration errors causing crashes
+type: application
+version: 1.0.0
+appVersion: "1.0"

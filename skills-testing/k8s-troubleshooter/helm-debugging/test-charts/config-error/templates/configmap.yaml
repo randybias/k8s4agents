@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-config
+  labels:
+    app: test-app
+data:
+  config.yaml: |
+    logLevel: {{ .Values.config.logLevel }}
+    maxConnections: {{ .Values.config.maxConnections }}
+    apiEndpoint: {{ .Values.config.apiEndpoint }}

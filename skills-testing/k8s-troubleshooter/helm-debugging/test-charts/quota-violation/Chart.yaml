@@ -1,0 +1,6 @@
+apiVersion: v2
+name: quota-violation
+description: Test chart that exceeds resource quotas
+type: application
+version: 1.0.0
+appVersion: "1.0"

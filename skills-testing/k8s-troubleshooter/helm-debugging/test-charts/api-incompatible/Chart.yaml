@@ -1,0 +1,6 @@
+apiVersion: v2
+name: api-incompatible
+description: Test chart with incompatible Kubernetes API versions
+type: application
+version: 1.0.0
+appVersion: "1.0"

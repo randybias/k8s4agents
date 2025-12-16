@@ -1,0 +1,8 @@
+version: v1
+failUpgrade: false
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: "1.21"
+  pullPolicy: IfNotPresent

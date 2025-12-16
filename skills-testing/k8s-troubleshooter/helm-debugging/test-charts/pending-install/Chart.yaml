@@ -1,0 +1,6 @@
+apiVersion: v2
+name: pending-install
+description: Test chart that gets stuck in pending-install state
+type: application
+version: 1.0.0
+appVersion: "1.0"

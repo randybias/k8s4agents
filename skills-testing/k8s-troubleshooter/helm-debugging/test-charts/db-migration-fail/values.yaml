@@ -1,0 +1,11 @@
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: "1.21"
+  pullPolicy: IfNotPresent
+
+database:
+  host: nonexistent-database.example.com
+  port: 5432
+  name: myapp

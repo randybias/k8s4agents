@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-post-install-hook
+  labels:
+    app: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      name: {{ .Release.Name }}-post-install-hook
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: post-install-job
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Post-install hook started"
+          echo "Main application deployed successfully"
+          echo "Running post-installation tasks..."
+          sleep 5
+          echo "ERROR: Post-installation validation failed!"
+          echo "Database seed data could not be loaded"
+          exit 1
