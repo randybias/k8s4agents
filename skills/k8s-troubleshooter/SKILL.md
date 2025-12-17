@@ -27,20 +27,6 @@ This skill encodes expert Kubernetes troubleshooting workflows for diagnosing co
 
 **Progressive Disclosure**: Core workflows are in this file. Deep dives available in `references/` when needed.
 
-## Quick Start: Slash Commands
-
-Use these trigger patterns for fast workflow access:
-
-- `/incident-triage` - Production incident response (FIRST STEP for any incident)
-- `/pod-debug` - Pod not starting or crashing
-- `/svc-debug` - Service unreachable or DNS issues
-- `/storage-debug` - PVC pending or mount failures
-- `/network-debug` - Connectivity or network policy issues
-- `/node-debug` - Node NotReady or resource pressure
-- `/helm-debug` - Helm deployment or upgrade failures
-- `/full-diag` - Comprehensive cluster health check
-- `/cluster-assessment` - Generate comprehensive cluster assessment report
-
 ## Incident Response (Start Here for Production Issues)
 
 **When to use**: Any production incident, outage, or unexpected cluster behavior.
@@ -165,7 +151,7 @@ Issue Category → Entry Point → Workflow Phase
    └─ Authentication/RBAC → Cluster Health → Correlate
 ```
 
-## Workflow 1: Pod Troubleshooting (/pod-debug)
+## Workflow 1: Pod Troubleshooting
 
 ### Phase 1: Baseline Assessment
 
@@ -256,7 +242,7 @@ See `references/pod-troubleshooting.md` for:
 
 **Stop Conditions**: Pod running and passing readiness checks, or root cause identified.
 
-## Workflow 2: Service Connectivity (/svc-debug)
+## Workflow 2: Service Connectivity
 
 ### Phase 1: Baseline Assessment
 
@@ -314,7 +300,7 @@ kubectl get pods -n <NAMESPACE> --show-labels
 
 **Deep Dive**: See `references/service-networking.md` for ingress troubleshooting, LoadBalancer issues, ExternalDNS, and service mesh integration.
 
-## Workflow 3: Storage Troubleshooting (/storage-debug)
+## Workflow 3: Storage Troubleshooting
 
 ### Phase 1: PVC Status Check
 
@@ -359,7 +345,7 @@ kubectl describe node <NODE_NAME> | grep -A 10 "Volumes"
 
 **Deep Dive**: See `references/storage-csi.md` for cloud-specific CSI troubleshooting (EBS, Azure Disk, GCE PD), mount options, and performance issues.
 
-## Workflow 4: Node Health (/node-debug)
+## Workflow 4: Node Health
 
 ### Phase 1: Node Status
 
@@ -406,7 +392,7 @@ kubectl get pdb --all-namespaces
 
 **Deep Dive**: See `references/calico-cni.md` for Calico-specific troubleshooting.
 
-## Workflow 5: Helm Debugging (/helm-debug)
+## Workflow 5: Helm Debugging
 
 > **AUTOMATED SCRIPT AVAILABLE**: Use `helm_release_debug.sh` for comprehensive Helm release diagnostics.
 
@@ -648,7 +634,7 @@ The script provides clear reporting on:
 
 **Deep Dive**: See `references/helm-debugging.md` for upgrade failures, rollback procedures, and secret/state cleanup.
 
-## Workflow 6: Cluster Health (/full-diag)
+## Workflow 6: Cluster Health
 
 > **AUTOMATED SCRIPT AVAILABLE**: Use `cluster_health_check.sh` for quick baseline health checks.
 
@@ -712,7 +698,7 @@ kubectl get events --all-namespaces --sort-by='.lastTimestamp' | tail -50
 kubectl get pods --all-namespaces --field-selector status.phase=Failed
 ```
 
-## Workflow 7: Cluster Assessment (/cluster-assessment)
+## Workflow 7: Cluster Assessment
 
 > **AUTOMATED SCRIPT AVAILABLE**: Use `cluster_assessment.sh` to generate comprehensive assessment reports.
 
@@ -828,7 +814,7 @@ Each finding includes:
 
 **Deep Dive**: See `references/cluster-assessment.md` for detailed assessment methodology, automation, and best practices.
 
-## Network Debugging Workflow (/network-debug)
+## Network Debugging Workflow
 
 ### CNI and Connectivity
 
