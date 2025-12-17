@@ -17,7 +17,7 @@ SET_ARGS=()
 RUN_TESTS=false
 RUN_DRY_RUN=false
 RUN_DIFF=false
-OUTPUT_FORMAT="text"
+OUTPUT_FORMAT="table"
 VALIDATE_CHART=false
 LOG_TAIL_LINES=50
 
@@ -42,7 +42,7 @@ Options:
   --run-dry-run       Perform client-side and server-side dry-run validations
   --diff              Show diff between current and proposed changes (requires helm-diff plugin)
   --validate-chart    Run helm lint and template validation on the chart
-  --output FORMAT     Output format: text, json, yaml (default: text)
+  --output FORMAT     Output format: table, json, yaml (default: table)
   --help, -h          Show this help message
 
 Examples:

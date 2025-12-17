@@ -27,7 +27,7 @@ test_hf_001() {
     sleep 10
 
     # Check 1: Release should be in failed/pending state
-    if helm list -n "$namespace" --all | grep -E "$release.*(failed|pending)"; then
+    if helm list -n "$namespace" | grep -E "$release.*(failed|pending)"; then
         ((checks_passed++))
         log_verbose "✓ Release in failed/pending state"
     else

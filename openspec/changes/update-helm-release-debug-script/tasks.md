@@ -14,8 +14,7 @@
 
 ## 3. Documentation Updates
 - [x] 3.1 Update `SKILL.md` automation-first/Helm sections with new flags and hook-aware coverage
-- [ ] 3.2 Update `commands/k8s-helm-debug.md` example usage to include new options (Note: file does not exist - slash command not found)
-- [x] 3.3 Refresh Helm reference notes to mention hooks/tests/dry-run flow
+- [x] 3.2 Refresh Helm reference notes to mention hooks/tests/dry-run flow
 
 ## 4. Validation
 - [x] 4.1 Run `shellcheck` (if available) on updated script (shellcheck not installed, bash syntax check passed)

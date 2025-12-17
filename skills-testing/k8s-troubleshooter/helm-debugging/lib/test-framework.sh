@@ -171,7 +171,7 @@ assert_helm_release_status() {
     log_verbose "Checking Helm release status: $release in $namespace"
 
     local actual_status
-    actual_status=$(helm list -n "$namespace" --all -o json | \
+    actual_status=$(helm list -n "$namespace" -o json | \
         jq -r ".[] | select(.name == \"$release\") | .status" 2>/dev/null || echo "not-found")
 
     if [ "$actual_status" = "$expected_status" ]; then
@@ -189,7 +189,7 @@ assert_helm_release_exists() {
 
     log_verbose "Checking if Helm release exists: $release in $namespace"
 
-    if helm list -n "$namespace" --all | grep -q "^$release"; then
+    if helm list -n "$namespace" | grep -q "^$release"; then
         log_verbose "  ✓ Release exists"
         return 0
     else
@@ -311,7 +311,7 @@ cleanup_helm_release() {
 
     log_verbose "Cleaning up Helm release: $release in $namespace"
 
-    if helm list -n "$namespace" --all | grep -q "^$release"; then
+    if helm list -n "$namespace" | grep -q "^$release"; then
         helm uninstall "$release" -n "$namespace" 2>/dev/null || true
         log_verbose "  Uninstalled release: $release"
     fi
@@ -323,7 +323,7 @@ cleanup_namespace_resources() {
     log_verbose "Cleaning up all resources in namespace: $namespace"
 
     # Delete all helm releases
-    helm list -n "$namespace" --all --short 2>/dev/null | while read -r release; do
+    helm list -n "$namespace" --short 2>/dev/null | while read -r release; do
         [ -n "$release" ] && helm uninstall "$release" -n "$namespace" 2>/dev/null || true
     done
 
