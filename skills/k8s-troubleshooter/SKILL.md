@@ -1,11 +1,15 @@
 ---
 name: k8s-troubleshooter
+version: "0.1.0"
 description: |
-  Comprehensive Kubernetes troubleshooting skill for diagnosing cluster, workload, networking, storage, and Helm issues.
-  Provides systematic diagnostic workflows, production-safe command patterns, and incident response playbooks.
-  Covers pod lifecycle issues, service connectivity, DNS problems, storage/CSI failures, node health, CNI/Calico
-  troubleshooting, Helm debugging, and cluster-wide diagnostics. Uses symptom-based entry points with phased triage
-  (baseline → inspect → correlate → deep dive). All commands are read-only by default for production safety.
+  Use this skill when users report Kubernetes cluster issues, pod failures, or need incident response.
+  Comprehensive troubleshooting for diagnosing cluster, workload, networking, storage, and Helm issues.
+  Invoke for: pods not starting (Pending, CrashLoopBackOff, ImagePull), service connectivity problems,
+  DNS resolution failures, storage/PVC issues, node health problems, CNI/Calico networking, Helm release
+  failures, or cluster-wide performance degradation. Provides systematic diagnostic workflows, standardized
+  investigation reports with severity-based depth (Executive Triage Cards for rapid decision-making),
+  and incident response playbooks with phased triage (baseline → inspect → correlate → deep dive).
+  All commands are read-only by default for production safety.
 ---
 
 # Kubernetes Troubleshooter Skill

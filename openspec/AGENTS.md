@@ -375,6 +375,33 @@ notifications/spec.md
 
 ## Best Practices
 
+### Skill Versioning
+All skills in `skills/*/SKILL.md` MUST include a `version` field in their frontmatter using semantic versioning (MAJOR.MINOR.PATCH):
+
+**Version Increment Rules:**
+- **PATCH** (0.1.X): Increment on EVERY commit that touches the skill
+  - Bug fixes, documentation updates, minor improvements
+  - AI assistant MUST increment patch version automatically on all skill changes
+- **MINOR** (0.X.0): Increment for new features or significant changes
+  - AI assistant MUST prompt committer: "This appears to be a significant change. Should we increment the minor version instead of patch?"
+  - Examples: New workflows, additional scripts, major documentation sections
+- **MAJOR** (X.0.0): Increment for breaking changes
+  - Changes to frontmatter structure, removal of workflows, incompatible API changes
+
+**Version Format:**
+```yaml
+---
+name: skill-name
+version: "0.1.0"
+description: |
+  Skill description...
+---
+```
+
+**Changelog:**
+- Consider maintaining a version history section in the skill documentation
+- Document what changed in each version for user reference
+
 ### Simplicity First
 - Default to <100 lines of new code
 - Single-file implementations until proven insufficient
