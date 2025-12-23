@@ -84,6 +84,404 @@ When a production incident is reported:
 
 **Remember**: Evidence first, action second. The triage script preserves state before changes.
 
+## Standardized Report Generation
+
+After completing an investigation, generate a structured report that enables rapid decision-making, clear auditing, and trustworthy communication. This format separates verified facts from inferences, ranks hypotheses with falsification tests, and provides explicit proof-of-work documentation.
+
+### Report Depth Guidelines
+
+| Severity | Executive Card | Other Sections |
+|----------|---------------|----------------|
+| P1/P2 | Full detail | Full detail |
+| P3 | Full detail | Concise (primary hypothesis only, abbreviated evidence) |
+| P4 | Abbreviated | Minimal (summary only) |
+
+For P3/P4 incidents:
+- Low-confidence hypotheses can be 1-line bullets
+- Supporting Evidence can reference earlier sections instead of repeating
+- "What Changed" can be omitted if unknown
+
+### Report Template Overview
+
+Every investigation report should follow this 7-section structure:
+
+| Section | Purpose | Time to Read |
+|---------|---------|--------------|
+| 0. Executive Triage Card | 30-60 second decision summary | 30 sec |
+| 1. Problem Statement | What's broken and success criteria | 1 min |
+| 2. Assessment & Findings | Facts, inferences, and scope | 2-3 min |
+| 3. Root Cause Analysis | Ranked hypotheses with evidence | 2-3 min |
+| 4. Remediation Plan | Actions, validation, rollback | 2 min |
+| 5. Proof of Work | Commands executed, sources consulted | 1 min |
+| 6. Supporting Evidence | Log excerpts, kubectl output | Reference |
+
+### Section 0: Executive Triage Card
+
+**Purpose**: Enable incident commanders to make decisions in 30-60 seconds.
+
+```markdown
+## Executive Triage Card
+
+| Field | Value |
+|-------|-------|
+| **Status** | 🔴 Active Incident / 🟡 Degraded / 🟢 Resolved |
+| **Severity** | P1/P2/P3/P4 (see severity table) |
+| **Impact** | [Blast radius: pod/namespace/multi-namespace/cluster-wide] |
+| **Duration** | Started: [timestamp], Ongoing: [duration] |
+
+### Primary Hypothesis
+**[Hypothesis statement]** — Confidence: [High/Medium/Low]
+
+⚠️ **Most Dangerous Assumption**: [What assumption, if wrong, would most change our approach]
+
+### Top 3 Recommended Actions
+
+| Priority | Action | Expected Outcome | Risk |
+|----------|--------|------------------|------|
+| 1 | [Immediate action] | [What it fixes] | [Low/Med/High] |
+| 2 | [Secondary action] | [What it fixes] | [Low/Med/High] |
+| 3 | [Tertiary action] | [What it fixes] | [Low/Med/High] |
+
+### Escalation Triggers
+- [ ] Escalate if: [condition 1]
+- [ ] Escalate if: [condition 2]
+
+### Alternative Hypotheses Considered
+1. [H2: Alternative hypothesis] — Confidence: [X%], Why deprioritized: [reason]
+2. [H3: Another alternative] — Confidence: [X%], Why deprioritized: [reason]
+```
+
+### Section 1: Problem Statement
+
+**Purpose**: Define what's broken, when it started, and what success looks like.
+
+```markdown
+## Problem Statement
+
+### Symptoms
+- [Observable symptom 1]
+- [Observable symptom 2]
+- [Observable symptom 3]
+
+### Timeline
+- **First detected**: [timestamp, detection method]
+- **Reported by**: [source: alert, user, automated check]
+- **Current duration**: [time since first detection]
+
+### Exit Criteria Checklist
+- [ ] [Specific measurable outcome 1]
+- [ ] [Specific measurable outcome 2]
+- [ ] [Specific measurable outcome 3]
+```
+
+### Section 2: Assessment & Findings
+
+**Purpose**: Separate verified facts from derived inferences with explicit confidence levels.
+
+```markdown
+## Assessment & Findings
+
+### Classification
+
+| Aspect | Value |
+|--------|-------|
+| **Category** | [Pod/Service/Storage/Node/Network/Helm/Cluster] |
+| **Blast Radius** | [Single pod/Namespace/Multi-namespace/Cluster-wide] |
+| **User Impact** | [None/Degraded/Partial outage/Full outage] |
+
+### Scope
+
+| Status | Resources |
+|--------|-----------|
+| **Confirmed Affected** | [pod-1, pod-2, service-x] |
+| **Suspected Affected** | [deployment-y, namespace-z] |
+| **Confirmed Unaffected** | [namespace-a, service-b] |
+
+### Observed Facts
+> Facts are directly verifiable from kubectl output, logs, or metrics.
+
+- **[FACT-1]** [Description] — Source: `kubectl get pods -n namespace`
+- **[FACT-2]** [Description] — Source: Pod logs, timestamp
+- **[FACT-3]** [Description] — Source: `kubectl describe node`
+
+### Derived Inferences
+> Inferences are conclusions drawn from facts. Each includes confidence level.
+
+- **[INF-1]** [Inference statement] — Confidence: [High/Medium/Low]
+  - Based on: FACT-1, FACT-2
+  - Could be wrong if: [falsification condition]
+- **[INF-2]** [Inference statement] — Confidence: [High/Medium/Low]
+  - Based on: FACT-3
+  - Could be wrong if: [falsification condition]
+
+### What Changed
+> Recent changes that may be correlated with the incident.
+
+| When | What Changed | Who/What | Correlation |
+|------|-------------|----------|-------------|
+| [timestamp] | [change description] | [actor] | [likely/possible/unlikely] |
+
+### Constraints Encountered
+- [Access limitation 1]
+- [Missing data 1]
+- [Tool limitation 1]
+```
+
+### Section 3: Root Cause Analysis
+
+**Purpose**: Present ranked hypotheses with evidence and explicit falsification tests.
+
+```markdown
+## Root Cause Analysis
+
+### H1: [Primary Hypothesis] — Confidence: [High/Medium/Low]
+
+**Statement**: [Clear, specific hypothesis about root cause]
+
+**Evidence For**:
+- [Supporting evidence 1] (FACT-1)
+- [Supporting evidence 2] (FACT-2)
+
+**Evidence Against**:
+- [Contradicting evidence, if any]
+
+**Falsification Test**: [Specific test that would disprove this hypothesis]
+- Command: `[kubectl command or check]`
+- If result is [X], hypothesis is falsified
+
+---
+
+### H2: [Secondary Hypothesis] — Confidence: [Medium/Low]
+
+**Statement**: [Alternative root cause hypothesis]
+
+**Evidence For**:
+- [Supporting evidence]
+
+**Evidence Against**:
+- [Why this is less likely than H1]
+
+**Falsification Test**: [How to disprove]
+
+---
+
+### H3: [Tertiary Hypothesis] — Confidence: [Low]
+
+**Statement**: [Third alternative]
+
+**Why Deprioritized**: [Specific reason]
+
+---
+
+### Remaining Unknowns
+- [ ] [Unknown 1]: Would change analysis if discovered
+- [ ] [Unknown 2]: Requires additional access/data
+```
+
+### Section 4: Remediation Plan
+
+**Purpose**: Provide actionable steps with validation and rollback procedures.
+
+```markdown
+## Remediation Plan
+
+### Immediate Mitigation
+
+| Step | Action | Validation | Rollback |
+|------|--------|------------|----------|
+| 1 | [Action command] | [How to verify success] | [How to undo] |
+| 2 | [Action command] | [How to verify success] | [How to undo] |
+
+### Fix Forward
+
+| Step | Action | Validation | Owner |
+|------|--------|------------|-------|
+| 1 | [Permanent fix action] | [Success criteria] | [Team/person] |
+| 2 | [Follow-up action] | [Success criteria] | [Team/person] |
+
+### Prevention Improvements
+
+| Category | Recommendation | Priority |
+|----------|---------------|----------|
+| Monitoring | [Add alert for X] | High |
+| Process | [Change Y procedure] | Medium |
+| Architecture | [Consider Z improvement] | Low |
+```
+
+### Section 5: Proof of Work
+
+**Purpose**: Document what was investigated for auditing and future reference.
+
+```markdown
+## Proof of Work
+
+### Inputs Consulted
+
+| Source Type | Source | Findings |
+|-------------|--------|----------|
+| Logs | [pod/container logs] | [Key finding] |
+| Events | [kubectl events] | [Key finding] |
+| Metrics | [prometheus/grafana] | [Key finding] |
+| Documentation | [runbook, wiki] | [Relevant info] |
+| Team Input | [person/channel] | [Key insight] |
+
+### Commands Executed
+
+```bash
+# Cluster state assessment
+kubectl get pods -n namespace -o wide
+kubectl describe pod problem-pod -n namespace
+kubectl logs problem-pod -n namespace --tail=100
+
+# Event correlation
+kubectl get events -n namespace --sort-by='.lastTimestamp'
+
+# Resource analysis
+kubectl top pods -n namespace
+kubectl describe node affected-node
+```
+
+### Constraints Documented
+- [Time constraint: investigation limited to X minutes]
+- [Access constraint: no access to Y]
+- [Data constraint: logs older than Z not available]
+```
+
+### Section 6: Supporting Evidence
+
+**Purpose**: Provide raw output for verification and future reference.
+
+```markdown
+## Supporting Evidence
+
+### Log Excerpts
+
+<details>
+<summary>Pod logs: problem-pod (click to expand)</summary>
+
+```
+[timestamp] ERROR: [error message]
+[timestamp] WARN: [warning message]
+[timestamp] INFO: [relevant context]
+```
+
+</details>
+
+### kubectl Output
+
+<details>
+<summary>kubectl describe pod problem-pod (click to expand)</summary>
+
+```
+Name:         problem-pod
+Namespace:    production
+...
+Events:
+  Type     Reason     Age   From     Message
+  ----     ------     ----  ----     -------
+  Warning  BackOff    2m    kubelet  Back-off restarting failed container
+```
+
+</details>
+
+### Metrics Snapshots
+
+<details>
+<summary>Resource usage at incident time (click to expand)</summary>
+
+[Include relevant graphs, metrics, or data points]
+
+</details>
+```
+
+### Severity Guidelines
+
+Use these criteria to assign incident severity:
+
+| Severity | Criteria | Response Time | Examples |
+|----------|----------|---------------|----------|
+| **P1 - Critical** | Complete service outage, data loss risk, security breach | Immediate (< 15 min) | Cluster unreachable, all pods crashing, data corruption |
+| **P2 - High** | Major feature unavailable, significant user impact | < 1 hour | Key service degraded, 50%+ pods affected, persistent failures |
+| **P3 - Medium** | Minor feature impact, workaround available | < 4 hours | Single pod issues, intermittent errors, non-critical service |
+| **P4 - Low** | Minimal impact, cosmetic issues | < 24 hours | Warning events, minor config drift, documentation gaps |
+
+### Blast Radius Categories
+
+Use these categories to describe incident scope:
+
+| Blast Radius | Description | Typical Causes |
+|--------------|-------------|----------------|
+| **Single Pod** | One pod affected, no broader impact | App bug, resource limits, image issues |
+| **Namespace** | Multiple pods in one namespace affected | Namespace quota, shared secret/configmap, network policy |
+| **Multi-Namespace** | Multiple namespaces impacted | Node failure, CNI issues, shared infrastructure |
+| **Cluster-Wide** | Entire cluster degraded or unavailable | Control plane issues, etcd problems, CNI failure, node exhaustion |
+
+### Fact vs Inference Methodology
+
+**Facts** are directly observable and independently verifiable:
+- Command output (kubectl get, describe, logs)
+- Timestamps from events or logs
+- Metric values at specific points in time
+- Configuration values from manifests
+
+**Inferences** are conclusions drawn from facts:
+- Root cause determinations
+- Correlations between events
+- Predictions about behavior
+- Assessments of impact
+
+**Labeling Convention**:
+- Prefix facts with `[FACT-n]` for traceability
+- Prefix inferences with `[INF-n]` and include:
+  - Confidence level (High/Medium/Low)
+  - Supporting facts by reference
+  - Falsification condition ("Could be wrong if...")
+
+**Confidence Levels**:
+- **High**: Multiple corroborating facts, matches known patterns, no contradicting evidence
+- **Medium**: Some supporting facts, plausible explanation, minor gaps in evidence
+- **Low**: Limited evidence, speculative, alternative explanations equally likely
+
+### Hypothesis Ranking
+
+When presenting root cause hypotheses:
+
+1. **Rank by confidence**: Present highest confidence hypothesis first (H1)
+2. **Provide evidence both ways**: List evidence for AND against each hypothesis
+3. **Include falsification tests**: Specify what would disprove each hypothesis
+4. **Identify the most dangerous assumption**: What assumption, if wrong, would most change the recommended approach?
+
+**Falsification Test Format**:
+```
+**Falsification Test**: [Description of test]
+- Command: `[specific command to run]`
+- Expected if hypothesis is TRUE: [result]
+- Expected if hypothesis is FALSE: [result]
+```
+
+**Example**:
+```
+### H1: OOM Kill due to memory leak — Confidence: High
+
+**Falsification Test**: Check if memory usage grows over time
+- Command: `kubectl top pod app-pod -n prod --containers`
+- Expected if TRUE: Memory usage near limit, increasing trend
+- Expected if FALSE: Memory usage stable, well below limit
+```
+
+### Report Generation Checklist
+
+Before finalizing a report, verify:
+
+- [ ] Executive Triage Card can be understood in 30-60 seconds
+- [ ] All facts are labeled and include source references
+- [ ] All inferences include confidence levels and falsification conditions
+- [ ] At least 2-3 hypotheses are presented with ranking
+- [ ] "Most dangerous assumption" is explicitly identified
+- [ ] Remediation steps include validation AND rollback procedures
+- [ ] Proof of Work documents all commands executed
+- [ ] Constraints and limitations are acknowledged
+
 ## Automation First
 
 **Priority**: Use automation scripts before manual command workflows. Scripts provide production-tested diagnostic flows and generate structured output.
