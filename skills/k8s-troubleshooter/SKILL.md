@@ -119,6 +119,268 @@ Every investigation report should follow this 7-section structure:
 | 5. Proof of Work | Commands executed, sources consulted | 1 min |
 | 6. Supporting Evidence | Log excerpts, kubectl output | Reference |
 
+### Report Template - MANDATORY STRUCTURE
+
+**CRITICAL**: This is a **literal template**. Fill in the placeholders but DO NOT:
+- Add, remove, or rename sections
+- Add subsections beyond those shown
+- Rearrange section order
+- Create alternative formats
+
+Copy this template and fill in the bracketed placeholders:
+
+---BEGIN MANDATORY TEMPLATE---
+
+# Kubernetes Incident Triage Report
+
+## 0. Executive Triage Card
+
+| Field | Value |
+|-------|-------|
+| **Status** | [Choose ONE: 🔴 Active Incident / 🟡 Degraded / 🟢 Resolved] |
+| **Severity** | [P1/P2/P3/P4] |
+| **Impact** | [Single Pod / Namespace / Multi-Namespace / Cluster-Wide] |
+| **Duration** | Started: [timestamp], Ongoing: [duration] |
+
+### Primary Hypothesis
+[One clear sentence] — Confidence: [High/Medium/Low]
+
+⚠️ **Most Dangerous Assumption**: [What assumption, if wrong, would invalidate this approach]
+
+### Top 3 Recommended Actions
+
+| Priority | Action | Expected Outcome | Risk |
+|----------|--------|------------------|------|
+| 1 | [Specific kubectl command or action] | [What this fixes] | [Low/Med/High] |
+| 2 | [Specific kubectl command or action] | [What this fixes] | [Low/Med/High] |
+| 3 | [Specific kubectl command or action] | [What this fixes] | [Low/Med/High] |
+
+### Escalation Triggers
+- [ ] Escalate if: [specific measurable condition]
+- [ ] Escalate if: [specific measurable condition]
+
+### Alternative Hypotheses Considered
+1. [H2 name] — Confidence: [X%], Why deprioritized: [brief reason]
+2. [H3 name] — Confidence: [X%], Why deprioritized: [brief reason]
+
+## 1. Problem Statement
+
+### Symptoms
+- [Observable symptom 1]
+- [Observable symptom 2]
+- [Observable symptom 3]
+
+### Timeline
+- **First detected**: [timestamp, detection method]
+- **Reported by**: [source: alert/user/automated]
+- **Current duration**: [time since detection]
+
+### Exit Criteria Checklist
+- [ ] [Specific measurable outcome]
+- [ ] [Specific measurable outcome]
+- [ ] [Specific measurable outcome]
+
+## 2. Assessment & Findings
+
+### Classification
+
+| Aspect | Value |
+|--------|-------|
+| **Category** | [Pod/Service/Storage/Node/Network/Helm/Cluster] |
+| **Blast Radius** | [Single pod / Namespace / Multi-namespace / Cluster-wide] |
+| **User Impact** | [None / Degraded / Partial outage / Full outage] |
+
+### Scope
+
+| Status | Resources |
+|--------|-----------|
+| **Confirmed Affected** | [list pods/services/nodes] |
+| **Suspected Affected** | [list resources] |
+| **Confirmed Unaffected** | [list key resources verified healthy] |
+
+### Observed Facts
+> Facts are directly verifiable from kubectl output, logs, or metrics.
+
+- **[FACT-1]** [Description] — Source: `[kubectl command or log reference]`
+- **[FACT-2]** [Description] — Source: `[kubectl command or log reference]`
+- **[FACT-3]** [Description] — Source: `[kubectl command or log reference]`
+
+### Derived Inferences
+> Inferences are conclusions drawn from facts.
+
+- **[INF-1]** [Inference statement] — Confidence: [High/Medium/Low]
+  - Based on: FACT-1, FACT-2
+  - Could be wrong if: [falsification condition]
+- **[INF-2]** [Inference statement] — Confidence: [High/Medium/Low]
+  - Based on: FACT-3
+  - Could be wrong if: [falsification condition]
+
+### What Changed
+
+| When | What Changed | Who/What | Correlation |
+|------|-------------|----------|-------------|
+| [timestamp] | [change description] | [actor/system] | [likely/possible/unlikely] |
+
+### Constraints Encountered
+- [Access limitation, missing data, or tool constraint]
+- [Additional constraint if applicable]
+
+## 3. Root Cause Analysis
+
+### H1: [Primary Hypothesis Name] — Confidence: [High/Medium/Low]
+
+**Statement**: [Clear, specific hypothesis about root cause]
+
+**Evidence For**:
+- [Supporting evidence] (references FACT-n)
+- [Supporting evidence] (references FACT-n)
+
+**Evidence Against**:
+- [Contradicting evidence or gaps]
+
+**Falsification Test**:
+- Command: `[specific kubectl command]`
+- Expected if TRUE: [specific result]
+- Expected if FALSE: [alternative result]
+
+---
+
+### H2: [Secondary Hypothesis Name] — Confidence: [Medium/Low]
+
+**Statement**: [Alternative root cause]
+
+**Evidence For**:
+- [Supporting evidence]
+
+**Evidence Against**:
+- [Why less likely than H1]
+
+**Falsification Test**:
+- Command: `[specific command]`
+- Expected if TRUE: [result]
+- Expected if FALSE: [result]
+
+---
+
+### Remaining Unknowns
+- [ ] [Unknown 1]: [Why this matters for the investigation]
+- [ ] [Unknown 2]: [What additional access/data would resolve this]
+
+## 4. Remediation Plan
+
+### Immediate Mitigation
+
+| Step | Action | Validation | Rollback |
+|------|--------|------------|----------|
+| 1 | [Specific action/command] | [How to verify success] | [How to undo] |
+| 2 | [Specific action/command] | [How to verify success] | [How to undo] |
+
+### Fix Forward
+
+| Step | Action | Validation | Owner |
+|------|--------|------------|-------|
+| 1 | [Permanent fix description] | [Success criteria] | [Team/person] |
+| 2 | [Follow-up action] | [Success criteria] | [Team/person] |
+
+### Prevention Improvements
+
+| Category | Recommendation | Priority |
+|----------|---------------|----------|
+| Monitoring | [Specific alert or metric to add] | High/Med/Low |
+| Process | [Process change description] | High/Med/Low |
+| Architecture | [Infrastructure improvement] | High/Med/Low |
+
+## 5. Proof of Work
+
+### Inputs Consulted
+
+| Source Type | Source | Findings |
+|-------------|--------|----------|
+| Logs | [pod/container name] | [Key finding from logs] |
+| Events | [kubectl events scope] | [Key finding from events] |
+| Metrics | [prometheus/grafana] | [Key observation] |
+
+### Commands Executed
+
+```bash
+# [Category description]
+[command 1]
+[command 2]
+[command 3]
+
+# [Next category if applicable]
+[command 4]
+```
+
+### Constraints Documented
+- [Time constraint: e.g., investigation limited to X minutes]
+- [Access constraint: e.g., no access to node logs]
+- [Data constraint: e.g., logs older than Y not available]
+
+## 6. Supporting Evidence
+
+### Log Excerpts
+
+<details>
+<summary>Pod logs: [pod-name] (click to expand)</summary>
+
+```
+[paste relevant log lines with timestamps]
+```
+
+</details>
+
+### kubectl Output
+
+<details>
+<summary>kubectl describe pod [pod-name]</summary>
+
+```
+[paste kubectl output]
+```
+
+</details>
+
+### Additional Evidence
+
+<details>
+<summary>[Description of evidence type]</summary>
+
+```
+[paste output or data]
+```
+
+</details>
+
+---END MANDATORY TEMPLATE---
+
+### Template Compliance Rules
+
+**Section Headers:**
+- MUST use exact section numbers and names (0-6)
+- MUST include all sections even if data unavailable
+- If data unavailable, state: "Not available due to [reason]"
+
+**Formatting:**
+- MUST preserve table structures
+- MUST use `[FACT-n]` labels for all facts
+- MUST use `[INF-n]` labels for all inferences
+- MUST use `<details>` tags for collapsible evidence
+
+**Content:**
+- Keep sections concise per P3/P4 depth guidelines
+- Use bullet points, not paragraphs, where shown
+- Include source attribution for all facts
+- Provide falsification tests for all hypotheses
+
+**Common Violations to Avoid:**
+- ❌ Creating sections named "Incident Overview", "Primary Issue", "Key Findings"
+- ❌ Mixing facts and inferences without labels
+- ❌ Providing hypotheses without Evidence For/Against structure
+- ❌ Omitting the "Most Dangerous Assumption"
+- ❌ Adding prose paragraphs instead of structured tables
+- ❌ Skipping Supporting Evidence section
+
 ### Section 0: Executive Triage Card
 
 **Purpose**: Enable incident commanders to make decisions in 30-60 seconds.
